@@ -11,6 +11,7 @@
     "source_doctype",
     "cb_source",
     "id_field",
+    "id_column",
     "sb_sheet",
     "spreadsheet_id",
     "sheet_tab",
@@ -60,10 +61,17 @@
     },
     {
       "default": "name",
-      "description": "The doctype field that uniquely identifies a record across syncs -- written into a dedicated column in the Sheet so a row can be matched back to the same record on the next sync (and so a new Sheet row with this column blank is recognised as a record to CREATE, not update). \"name\" (the doctype's own primary key) is correct for almost every doctype.",
+      "description": "The doctype field that uniquely identifies a record across syncs. \"name\" (the doctype's own primary key) is correct for almost every doctype.",
       "fieldname": "id_field",
       "fieldtype": "Data",
       "label": "Unique ID Field",
+      "reqd": 1
+    },
+    {
+      "description": "Which Sheet column holds the Unique ID Field's value -- a dedicated column separate from Fields below, since the id is a matching key for the sync itself, not necessarily something meant to be user-visible/editable data. Pull sync (Sheets -> Alaiy OS) uses it to find which record a row belongs to; a row with this column blank is treated as a new record to create.",
+      "fieldname": "id_column",
+      "fieldtype": "Data",
+      "label": "ID Column",
       "reqd": 1
     },
     {

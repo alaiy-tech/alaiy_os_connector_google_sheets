@@ -79,12 +79,85 @@ def _col_letter_to_index(letter):
 
 
 def run_pull_sync(trigger="scheduled"):
-    """Sheets -> Alaiy OS: read changed rows from the mapped Google Sheet
-    and apply them to Alaiy OS, through normal doctype validation/
-    permissions. TODO: implement (issue #4)."""
+    """Sheets -> Alaiy OS: for every enabled mapping, read the mapped
+    range from the Sheet, match each row back to a record via the ID
+    Column, and apply every column marked Editable from Sheet to that
+    record through normal doctype validation/permissions. A row whose ID
+    Column is blank, or whose id doesn't match an existing record, is
+    skipped and counted, never silently creating or guessing a target --
+    Phase 1/2 scope is updating existing records, not import-by-pull.
+
+    A row that fails validation (bad link field, etc.) is caught, logged,
+    and does not stop the rest of the run -- same per-row isolation
+    push sync and every other connector in this codebase already uses.
+    """
+    from alaiy_os_connector_google_sheets.google_sheets.client import GoogleSheetsClient
+
     for mapping_name in _enabled_mappings():
         def worker(log, mapping_name=mapping_name):
-            pass
+            mapping = frappe.get_doc("Google Sheets Mapping", mapping_name)
+            editable_rows = [row for row in mapping.field_map if row.editable_from_sheet]
+            if not editable_rows:
+                # Nothing on this mapping is writable from the Sheet side --
+                # a perfectly valid configuration (e.g. a mapping that's
+                # push-only in practice), just nothing to do here.
+                log.items_processed = 0
+                log.save(ignore_permissions=True)
+                frappe.db.commit()
+                return
+
+            fields = [row.doctype_field for row in editable_rows]
+            columns = [row.sheet_column for row in editable_rows] + [mapping.id_column]
+            min_col = min(_col_letter_to_index(c) for c in columns)
+            max_col = max(_col_letter_to_index(c) for c in columns)
+
+            client = GoogleSheetsClient()
+            start_row = mapping.header_row + 1
+            start_col = _index_to_col_letter(min_col)
+            end_col = _index_to_col_letter(max_col)
+            a1_range = f"{mapping.sheet_tab}!{start_col}{start_row}:{end_col}"
+            sheet_rows = client.get_values(mapping.spreadsheet_id, a1_range)
+
+            id_col_offset = _col_letter_to_index(mapping.id_column) - min_col
+            field_col_offsets = [(f, _col_letter_to_index(c) - min_col) for f, c in zip(fields, columns)]
+
+            processed, updated, failed, skipped = 0, 0, 0, 0
+            for sheet_row in sheet_rows:
+                processed += 1
+                record_id = sheet_row[id_col_offset].strip() if id_col_offset < len(sheet_row) else ""
+                if not record_id or not frappe.db.exists(mapping.source_doctype, {mapping.id_field: record_id}):
+                    skipped += 1
+                    continue
+
+                try:
+                    doc = frappe.get_doc(mapping.source_doctype, {mapping.id_field: record_id})
+                    changed = False
+                    for fieldname, offset in field_col_offsets:
+                        value = sheet_row[offset] if offset < len(sheet_row) else ""
+                        if str(doc.get(fieldname) or "") != value:
+                            doc.set(fieldname, value)
+                            changed = True
+                    if changed:
+                        doc.save()
+                        updated += 1
+                except Exception:
+                    failed += 1
+                    frappe.log_error(
+                        title=f"Google Sheets connector: pull sync row failed ({mapping_name})",
+                        message=f"record_id={record_id}\n{frappe.get_traceback()}",
+                    )
+                    frappe.db.rollback()
+
+            frappe.db.commit()
+
+            log.items_processed = processed
+            log.items_updated = updated
+            log.items_failed = failed
+            log.save(ignore_permissions=True)
+            frappe.db.commit()
+
+            frappe.db.set_value("Google Sheets Mapping", mapping_name, "last_pull_row_count", processed)
+            frappe.db.commit()
 
         _run("pull", trigger, worker, mapping=mapping_name)
 
@@ -102,8 +175,8 @@ def run_push_sync(trigger="scheduled"):
     for mapping_name in _enabled_mappings():
         def worker(log, mapping_name=mapping_name):
             mapping = frappe.get_doc("Google Sheets Mapping", mapping_name)
-            fields = [row.doctype_field for row in mapping.field_map]
-            columns = [row.sheet_column for row in mapping.field_map]
+            fields = [row.doctype_field for row in mapping.field_map] + [mapping.id_field]
+            columns = [row.sheet_column for row in mapping.field_map] + [mapping.id_column]
 
             # Text Editor / HTML / Code fields store raw markup as their
             # real value -- confirmed live on ToDo.description, which
@@ -117,8 +190,7 @@ def run_push_sync(trigger="scheduled"):
                 if df.fieldtype in ("Text Editor", "HTML Editor", "HTML")
             }
 
-            fetch_fields = fields if mapping.id_field in fields else [mapping.id_field] + fields
-            records = frappe.get_all(mapping.source_doctype, fields=fetch_fields)
+            records = frappe.get_all(mapping.source_doctype, fields=list(dict.fromkeys(fields)))
 
             def cell_value(record, fieldname):
                 value = record.get(fieldname) or ""
@@ -126,11 +198,9 @@ def run_push_sync(trigger="scheduled"):
                     value = frappe.utils.strip_html(value)
                 return str(value)
 
-            # One row per record, columns in field_map order -- the id_field
-            # is intentionally NOT written as a data column here unless it's
-            # also explicitly listed in field_map; it exists to let a future
-            # pull direction (#4) match a Sheet row back to this record, not
-            # to force it onto the Sheet as a visible column.
+            # One row per record, columns in field_map order plus the
+            # dedicated id_column last -- pull sync (#4) reads that column
+            # to find which record a row belongs to.
             rows = [[cell_value(record, f) for f in fields] for record in records]
 
             client = GoogleSheetsClient()

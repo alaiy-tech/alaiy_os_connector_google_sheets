@@ -17,7 +17,8 @@ class GoogleSheetsMapping(Document):
 	def validate(self):
 		self._normalize_spreadsheet_id()
 		self._validate_source_doctype_fields()
-		self._validate_id_field_is_mapped()
+		self._validate_id_field()
+		self._validate_id_column_not_reused()
 		if self.is_enabled:
 			self._validate_sheet_reachable()
 
@@ -57,12 +58,10 @@ class GoogleSheetsMapping(Document):
 					)
 				)
 
-	def _validate_id_field_is_mapped(self):
-		"""id_field doesn't have to be listed as a Sheet-visible column
-		(it's an internal matching key, not necessarily something a Sheet
-		user should see or edit) -- but it does have to be a real field,
-		same check as above, run separately since it lives outside
-		field_map."""
+	def _validate_id_field(self):
+		"""id_field lives outside field_map (it's a matching key, not
+		necessarily Sheet-visible data), so it needs the same real-field
+		check run separately."""
 		if not self.source_doctype or not self.id_field:
 			return
 		meta = frappe.get_meta(self.source_doctype)
@@ -71,6 +70,22 @@ class GoogleSheetsMapping(Document):
 			frappe.throw(
 				_("Unique ID Field: {0} has no field {1}.").format(
 					self.source_doctype, frappe.bold(self.id_field)
+				)
+			)
+
+	def _validate_id_column_not_reused(self):
+		"""The ID Column is a dedicated, separate column from Fields --
+		reusing the same column letter for both would mean pull sync reads
+		a value as both the matching key AND a data field, and push sync
+		would silently overwrite whichever one wrote last. Reject the
+		ambiguity outright rather than guess which one wins."""
+		if not self.id_column:
+			return
+		mapped_columns = {row.sheet_column.strip().upper() for row in self.field_map if row.sheet_column}
+		if self.id_column.strip().upper() in mapped_columns:
+			frappe.throw(
+				_("ID Column {0} is also used in Fields below -- pick a column that isn't otherwise mapped.").format(
+					frappe.bold(self.id_column)
 				)
 			)
 
