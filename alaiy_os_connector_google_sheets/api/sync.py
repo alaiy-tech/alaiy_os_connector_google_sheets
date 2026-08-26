@@ -41,27 +41,37 @@ def trigger_push_sync():
 
 
 @frappe.whitelist()
-def get_sync_status(sync_type=None):
+def get_sync_status(sync_type=None, mapping=None, limit=5):
     """
     Return the most recent Google Sheets Sync Log rows, newest first.
 
     The Alaiy OS connector card passes the registry slot name ("categories"
-    or "items"); map those to this connector's own sync_type values.
+    or "items"); map those to this connector's own sync_type values -- the
+    card itself only ever wants a handful of rows (limit stays 5 by
+    default for that caller). mapping/limit are for a richer Logs view:
+    pass mapping to scope to one mapping, limit=50 for the spec's "admin
+    can view last 50 sync events, filterable by mapping" acceptance (the
+    Google Sheets Sync Log doctype's own Desk list view already satisfies
+    this natively too, via its in_standard_filter mapping field -- this
+    endpoint exists for a caller that wants the data directly).
     """
     filters = {}
     if sync_type:
         type_map = {"categories": "pull", "items": "push"}
         filters["sync_type"] = type_map.get(sync_type, sync_type)
+    if mapping:
+        filters["mapping"] = mapping
     return frappe.get_all(
         "Google Sheets Sync Log",
         filters=filters,
         fields=[
-            "name", "sync_type", "trigger", "status",
+            "name", "mapping", "sync_type", "trigger", "status",
             "started_at", "finished_at",
             "items_processed", "items_created", "items_updated", "items_failed",
+            "conflict_count",
             "pages_total", "pages_done",
             "error_message",
         ],
         order_by="started_at desc",
-        limit=5,
+        limit=int(limit),
     )
