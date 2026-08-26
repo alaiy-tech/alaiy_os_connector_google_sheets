@@ -59,5 +59,25 @@ frappe.ui.form.on("Google Sheets Mapping", {
       },
       __("Actions"),
     );
+
+    frappe.db
+      .count("Google Sheets Sync State", { filters: { mapping: frm.doc.name, conflict_flagged: 1 } })
+      .then((count) => {
+        if (!count) return;
+        frm.dashboard.add_indicator(
+          __("{0} unresolved conflict{1}", [count, count === 1 ? "" : "s"]),
+          "red",
+        );
+        frm.add_custom_button(
+          __("View Conflicts ({0})", [count]),
+          () => {
+            frappe.set_route("list", "Google Sheets Sync State", {
+              mapping: frm.doc.name,
+              conflict_flagged: 1,
+            });
+          },
+          __("Actions"),
+        );
+      });
   },
 });

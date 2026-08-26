@@ -16,6 +16,7 @@
     "items_created",
     "items_updated",
     "items_failed",
+    "conflict_count",
     "pages_total",
     "pages_done",
     "error_message",
@@ -86,6 +87,14 @@
       "fieldname": "items_failed",
       "fieldtype": "Int",
       "label": "Items Failed"
+    },
+    {
+      "default": "0",
+      "description": "Fields flagged this run because they changed on both sides since the last sync -- see Google Sheets Sync State for exactly which field(s), filtered by this run's mapping.",
+      "fieldname": "conflict_count",
+      "fieldtype": "Int",
+      "in_list_view": 1,
+      "label": "Conflicts"
     },
     {
       "default": "0",

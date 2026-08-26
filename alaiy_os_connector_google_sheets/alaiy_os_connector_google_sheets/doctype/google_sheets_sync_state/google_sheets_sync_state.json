@@ -1,0 +1,73 @@
+{
+  "autoname": "hash",
+  "creation": "2026-08-26 00:00:00.000000",
+  "doctype": "DocType",
+  "editable_grid": 1,
+  "engine": "InnoDB",
+  "field_order": [
+    "mapping",
+    "record_id",
+    "fieldname",
+    "last_synced_value",
+    "conflict_flagged"
+  ],
+  "fields": [
+    {
+      "fieldname": "mapping",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Mapping",
+      "options": "Google Sheets Mapping",
+      "reqd": 1
+    },
+    {
+      "description": "The mapped doctype's id_field value for the record this row tracks -- not a Link, since the mapped doctype varies per mapping.",
+      "fieldname": "record_id",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Record ID",
+      "reqd": 1
+    },
+    {
+      "description": "Which doctype field this row tracks. One row per (mapping, record, field) -- conflict detection is per-field, not per-record, since two fields on the same record can independently be edited on either side without colliding.",
+      "fieldname": "fieldname",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Field",
+      "reqd": 1
+    },
+    {
+      "description": "The value both sides agreed on as of the last successful sync (whichever direction wrote it last) -- the baseline conflict detection diffs the CURRENT Frappe value and CURRENT Sheet value against, to tell \"only one side changed\" apart from \"both sides changed to different values.\"",
+      "fieldname": "last_synced_value",
+      "fieldtype": "Long Text",
+      "label": "Last Synced Value"
+    },
+    {
+      "default": "0",
+      "description": "Set when this field's value diverged on both sides since the last sync -- see Google Sheets Sync Log for the run that flagged it. Neither side is applied while this is set; an admin must resolve it (edit either side, then clear this flag) before this field syncs again.",
+      "fieldname": "conflict_flagged",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "Conflict Flagged"
+    }
+  ],
+  "links": [],
+  "modified": "2026-08-26 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Alaiy Os Connector Google Sheets",
+  "name": "Google Sheets Sync State",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "read": 1,
+      "report": 1,
+      "role": "System Manager"
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 0
+}
