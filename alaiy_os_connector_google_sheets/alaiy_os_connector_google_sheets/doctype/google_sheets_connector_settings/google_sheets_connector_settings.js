@@ -1,21 +1,21 @@
-frappe.ui.form.on("Template Connector Settings", {
+frappe.ui.form.on("Google Sheets Connector Settings", {
   refresh(frm) {
-    frm.page.set_title(__("Template Settings"));
+    frm.page.set_title(__("Google Sheets Settings"));
 
     // Mount the shared Alaiy OS connector status card + password reveal.
-    alaiy_os.connector_card.mount(frm, "template");
+    alaiy_os.connector_card.mount(frm, "google_sheets");
     alaiy_os.connector_card.setup_password_reveal(
       frm,
-      "template_api_token",
-      "template",
+      "gs_api_token",
+      "google_sheets",
     );
 
     // Auto-fill Company with the site default if empty.
-    if (!frm.doc.template_company) {
+    if (!frm.doc.gs_company) {
       frappe.db
         .get_single_value("Global Defaults", "default_company")
         .then((company) => {
-          if (company) frm.set_value("template_company", company);
+          if (company) frm.set_value("gs_company", company);
         });
     }
 
@@ -27,7 +27,7 @@ frappe.ui.form.on("Template Connector Settings", {
           // so a successful test also flips the "Connector Status" card at
           // the top of this form from "Not configured" to "Connected".
           method: "alaiy_os.api.connectors.test_connector",
-          args: { connector_id: "template" },
+          args: { connector_id: "google_sheets" },
           callback(r) {
             const res = r.message || {};
             frappe.show_alert(
@@ -47,13 +47,13 @@ frappe.ui.form.on("Template Connector Settings", {
     );
 
     frm.add_custom_button(
-      __("Run Pull Sync"),
+      __("Run Sheets -> Frappe Sync"),
       () => {
         frappe.call({
-          method: "alaiy_os_connector_template.api.sync.trigger_pull_sync",
+          method: "alaiy_os_connector_google_sheets.api.sync.trigger_pull_sync",
           callback: () =>
             frappe.show_alert(
-              { message: __("Pull sync queued"), indicator: "blue" },
+              { message: __("Sheets -> Frappe sync queued"), indicator: "blue" },
               5,
             ),
         });
@@ -62,13 +62,13 @@ frappe.ui.form.on("Template Connector Settings", {
     );
 
     frm.add_custom_button(
-      __("Run Push Sync"),
+      __("Run Frappe -> Sheets Sync"),
       () => {
         frappe.call({
-          method: "alaiy_os_connector_template.api.sync.trigger_push_sync",
+          method: "alaiy_os_connector_google_sheets.api.sync.trigger_push_sync",
           callback: () =>
             frappe.show_alert(
-              { message: __("Push sync queued"), indicator: "blue" },
+              { message: __("Frappe -> Sheets sync queued"), indicator: "blue" },
               5,
             ),
         });

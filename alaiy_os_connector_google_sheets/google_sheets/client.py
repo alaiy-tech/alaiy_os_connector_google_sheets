@@ -1,7 +1,7 @@
 # Copyright (c) 2026, Alaiy and contributors
 # For license information, please see license.txt
 """
-Thin HTTP client for the external API. Built from Template Connector Settings
+Thin HTTP client for the external API. Built from Google Sheets Connector Settings
 so every caller shares one place to read credentials and add auth headers.
 Replace the request helpers with whatever your API needs (REST, GraphQL, ...).
 """
@@ -10,13 +10,13 @@ import requests
 import frappe
 
 
-class TemplateClient:
+class GoogleSheetsClient:
     def __init__(self):
-        settings = frappe.get_single("Template Connector Settings")
-        self.base_url = (settings.template_api_url or "").strip().rstrip("/")
-        self.token = settings.get_password("template_api_token") if settings.template_api_token else None
+        settings = frappe.get_single("Google Sheets Connector Settings")
+        self.base_url = (settings.gs_api_url or "").strip().rstrip("/")
+        self.token = settings.get_password("gs_api_token") if settings.gs_api_token else None
         if not self.base_url or not self.token:
-            raise RuntimeError("Template connector is not configured (API URL / Token missing).")
+            raise RuntimeError("Google Sheets connector is not configured (API URL / Token missing).")
 
     def _headers(self):
         return {"Authorization": f"Bearer {self.token}"}
