@@ -105,15 +105,33 @@ def run_push_sync(trigger="scheduled"):
             fields = [row.doctype_field for row in mapping.field_map]
             columns = [row.sheet_column for row in mapping.field_map]
 
+            # Text Editor / HTML / Code fields store raw markup as their
+            # real value -- confirmed live on ToDo.description, which
+            # pushed <div class="ql-editor...">...</div> straight into the
+            # Sheet instead of the plain text a Sheet user actually wants
+            # to see. Strip tags for exactly these fieldtypes; every other
+            # fieldtype's value is written as-is, unchanged.
+            meta = frappe.get_meta(mapping.source_doctype)
+            html_fields = {
+                df.fieldname for df in meta.fields
+                if df.fieldtype in ("Text Editor", "HTML Editor", "HTML")
+            }
+
             fetch_fields = fields if mapping.id_field in fields else [mapping.id_field] + fields
             records = frappe.get_all(mapping.source_doctype, fields=fetch_fields)
+
+            def cell_value(record, fieldname):
+                value = record.get(fieldname) or ""
+                if fieldname in html_fields:
+                    value = frappe.utils.strip_html(value)
+                return str(value)
 
             # One row per record, columns in field_map order -- the id_field
             # is intentionally NOT written as a data column here unless it's
             # also explicitly listed in field_map; it exists to let a future
             # pull direction (#4) match a Sheet row back to this record, not
             # to force it onto the Sheet as a visible column.
-            rows = [[str(record.get(f) or "") for f in fields] for record in records]
+            rows = [[cell_value(record, f) for f in fields] for record in records]
 
             client = GoogleSheetsClient()
             start_row = mapping.header_row + 1
