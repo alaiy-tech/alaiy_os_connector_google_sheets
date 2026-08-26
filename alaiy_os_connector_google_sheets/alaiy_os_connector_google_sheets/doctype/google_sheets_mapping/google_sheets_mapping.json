@@ -47,7 +47,7 @@
       "label": "Source Doctype"
     },
     {
-      "description": "The Alaiy OS doctype this mapping syncs. Phase 1 targets Settlement Reconciliation only -- other doctypes can be mapped here, but run_pull_sync/run_push_sync only act on enabled mappings once the general sync logic ships (see repo issue #3/#4).",
+      "description": "The Alaiy OS doctype this mapping syncs -- any doctype works, sync logic has no hardcoded target.",
       "fieldname": "source_doctype",
       "fieldtype": "Link",
       "in_list_view": 1,
