@@ -7,12 +7,12 @@
   "field_order": [
     "is_enabled",
     "sb_connection",
-    "gs_api_url",
-    "gs_api_token",
-    "sb_defaults",
-    "gs_company",
-    "gs_default_warehouse",
-    "gs_price_list",
+    "gs_connected_email",
+    "gs_oauth_state",
+    "cb_connection",
+    "gs_refresh_token",
+    "gs_token_refreshed_at",
+    "gs_token_expires_at",
     "sb_schedule",
     "gs_pull_sync_interval",
     "gs_push_sync_interval"
@@ -27,48 +27,44 @@
     {
       "fieldname": "sb_connection",
       "fieldtype": "Section Break",
-      "label": "API Connection"
+      "label": "Google Account"
     },
     {
-      "description": "Base URL of the external API, e.g. https://api.example.com/v1",
-      "fieldname": "gs_api_url",
+      "description": "The Google account currently authorized. Empty means not connected yet.",
+      "fieldname": "gs_connected_email",
       "fieldtype": "Data",
       "in_list_view": 1,
-      "label": "API URL",
-      "reqd": 1
+      "label": "Connected Account",
+      "read_only": 1
     },
     {
-      "fieldname": "gs_api_token",
+      "description": "Short-lived random value generated when \"Connect Google Account\" is clicked, checked on callback to reject a forged/replayed redirect (OAuth state parameter, RFC 6749 §10.12). Not shown on the form.",
+      "fieldname": "gs_oauth_state",
+      "fieldtype": "Data",
+      "hidden": 1,
+      "label": "OAuth State"
+    },
+    {
+      "fieldname": "cb_connection",
+      "fieldtype": "Column Break"
+    },
+    {
+      "description": "Long-lived credential exchanged for a fresh access token on every API call. Never shown; cleared entirely on Disconnect.",
+      "fieldname": "gs_refresh_token",
       "fieldtype": "Password",
-      "label": "API Token",
-      "reqd": 1
+      "label": "Refresh Token"
     },
     {
-      "fieldname": "sb_defaults",
-      "fieldtype": "Section Break",
-      "label": "Alaiy OS Defaults"
+      "fieldname": "gs_token_refreshed_at",
+      "fieldtype": "Datetime",
+      "label": "Token Last Refreshed",
+      "read_only": 1
     },
     {
-      "fieldname": "gs_company",
-      "fieldtype": "Link",
-      "label": "Company",
-      "options": "Company",
-      "reqd": 1
-    },
-    {
-      "description": "Default warehouse for stock synced through this connector.",
-      "fieldname": "gs_default_warehouse",
-      "fieldtype": "Link",
-      "label": "Default Warehouse",
-      "options": "Warehouse",
-      "reqd": 1
-    },
-    {
-      "fieldname": "gs_price_list",
-      "fieldtype": "Link",
-      "label": "Price List",
-      "options": "Price List",
-      "reqd": 1
+      "fieldname": "gs_token_expires_at",
+      "fieldtype": "Datetime",
+      "label": "Access Token Expires",
+      "read_only": 1
     },
     {
       "fieldname": "sb_schedule",

@@ -25,7 +25,7 @@ def after_install():
     'Failed to decrypt key' error on first load.
     """
     frappe.db.set_single_value(
-        "Google Sheets Connector Settings", "gs_api_token", ""
+        "Google Sheets Connector Settings", "gs_refresh_token", ""
     )
     frappe.db.commit()
 
@@ -106,35 +106,10 @@ def _fix_settings_as_single():
 # ---------------------------------------------------------------------------
 # First-enable setup (called from the settings controller, not on migrate)
 # ---------------------------------------------------------------------------
-def setup_custom_fields():
-    """
-    Add this connector's custom fields to ERPNext doctypes. Idempotent — safe
-    to call on every enable/migrate. Replace the examples below with the
-    external-id / flag fields your connector actually needs.
-    """
-    item_fields = [
-        {
-            "fieldname": "gs_external_id",
-            "label": "Google Sheets Row ID",
-            "fieldtype": "Data",
-            "search_index": 1,
-            "insert_after": "item_code",
-        },
-        {
-            "fieldname": "sync_to_google_sheets",
-            "label": "Sync to Google Sheets",
-            "fieldtype": "Check",
-            "default": "0",
-            "in_list_view": 1,
-            "insert_after": "disabled",
-            "description": "Include this Item in Google Sheets syncs.",
-        },
-    ]
-
-    _ensure_custom_fields("Item", item_fields)
-    frappe.db.commit()
-
-
+# No ERPNext custom fields needed on enable -- unlike a product/order
+# connector, this one doesn't tag Item/Sales Order rows with an external
+# id. _ensure_custom_fields below is kept as a reusable helper for
+# whatever field(s) the Mapping doctype work ends up needing.
 def _ensure_custom_fields(doctype, fields):
     for f in fields:
         key = f"{doctype}-{f['fieldname']}"

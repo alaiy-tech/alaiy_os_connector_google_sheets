@@ -26,12 +26,19 @@ class GoogleSheetsConnectorSettings(Document):
             self._on_disable()
 
     def _on_first_enable(self):
-        from alaiy_os_connector_google_sheets.setup.install import setup_custom_fields
-        setup_custom_fields()
-        # e.g. register webhooks, create default supplier / price lists here.
+        # Nothing needed yet -- unlike the product/order connectors this
+        # was cloned from, there are no ERPNext custom fields to add on
+        # first enable. Real first-enable setup lands with the Mapping
+        # doctype (validating/creating anything a mapping needs).
+        pass
 
     def _on_disable(self):
-        # e.g. unregister webhooks here.
+        # Deliberately does NOT revoke the Google OAuth grant or clear
+        # gs_refresh_token -- disabling the connector just stops scheduled
+        # syncs (see google_sheets/sync_jobs.py's is_enabled check).
+        # Revoking the actual connection is a separate, explicit action
+        # (see google_sheets/oauth.py::disconnect), so toggling this
+        # checkbox off and back on doesn't force reconnecting Google.
         pass
 
     def _sync_registry_is_enabled(self):
