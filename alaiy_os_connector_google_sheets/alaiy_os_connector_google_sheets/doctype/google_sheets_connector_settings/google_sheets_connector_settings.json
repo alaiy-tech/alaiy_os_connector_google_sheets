@@ -73,19 +73,19 @@
     },
     {
       "default": "Disabled",
-      "description": "How often to automatically run the pull sync (external → Alaiy OS).",
+      "description": "How often to automatically pull changes from the Sheet into Alaiy OS.",
       "fieldname": "gs_pull_sync_interval",
       "fieldtype": "Select",
-      "label": "Pull Sync Interval",
+      "label": "Sheets -> Alaiy OS Interval",
       "options": "Disabled\n5 min\n15 min\n30 min\n60 min",
       "reqd": 1
     },
     {
       "default": "Disabled",
-      "description": "How often to automatically run the push sync (Alaiy OS → external).",
+      "description": "How often to automatically push Alaiy OS changes into the Sheet.",
       "fieldname": "gs_push_sync_interval",
       "fieldtype": "Select",
-      "label": "Push Sync Interval",
+      "label": "Alaiy OS -> Sheets Interval",
       "options": "Disabled\n5 min\n15 min\n30 min\n60 min",
       "reqd": 1
     }

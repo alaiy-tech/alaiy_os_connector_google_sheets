@@ -23,8 +23,8 @@ connector_meta = {
     "sync_categories_method": "alaiy_os_connector_google_sheets.api.sync.trigger_pull_sync",
     "sync_items_method": "alaiy_os_connector_google_sheets.api.sync.trigger_push_sync",
     "sync_status_method": "alaiy_os_connector_google_sheets.api.sync.get_sync_status",
-    "sync_categories_label": "Sheets -> Frappe",
-    "sync_items_label": "Frappe -> Sheets",
+    "sync_categories_label": "Sheets -> Alaiy OS",
+    "sync_items_label": "Alaiy OS -> Sheets",
     "is_enabled": 0,
     "connection_status": "untested",
 }

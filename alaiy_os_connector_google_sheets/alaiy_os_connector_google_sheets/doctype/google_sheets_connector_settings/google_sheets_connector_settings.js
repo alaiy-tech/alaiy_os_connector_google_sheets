@@ -94,13 +94,13 @@ frappe.ui.form.on("Google Sheets Connector Settings", {
     );
 
     frm.add_custom_button(
-      __("Run Sheets -> Frappe Sync"),
+      __("Run Sheets -> Alaiy OS Sync"),
       () => {
         frappe.call({
           method: "alaiy_os_connector_google_sheets.api.sync.trigger_pull_sync",
           callback: () =>
             frappe.show_alert(
-              { message: __("Sheets -> Frappe sync queued"), indicator: "blue" },
+              { message: __("Sheets -> Alaiy OS sync queued"), indicator: "blue" },
               5,
             ),
         });
@@ -109,13 +109,13 @@ frappe.ui.form.on("Google Sheets Connector Settings", {
     );
 
     frm.add_custom_button(
-      __("Run Frappe -> Sheets Sync"),
+      __("Run Alaiy OS -> Sheets Sync"),
       () => {
         frappe.call({
           method: "alaiy_os_connector_google_sheets.api.sync.trigger_push_sync",
           callback: () =>
             frappe.show_alert(
-              { message: __("Frappe -> Sheets sync queued"), indicator: "blue" },
+              { message: __("Alaiy OS -> Sheets sync queued"), indicator: "blue" },
               5,
             ),
         });
