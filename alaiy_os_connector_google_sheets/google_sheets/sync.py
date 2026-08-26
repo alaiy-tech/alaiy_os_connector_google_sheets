@@ -153,14 +153,29 @@ def run_push_sync(trigger="scheduled"):
                     cells[_col_letter_to_index(col_letter) - min_col] = value
                 block.append(cells)
 
+            rows_written = 0
             if block:
                 start_col = _index_to_col_letter(min_col)
                 end_col = _index_to_col_letter(max_col)
                 a1_range = f"{mapping.sheet_tab}!{start_col}{start_row}:{end_col}{end_row}"
-                client.update_values(mapping.spreadsheet_id, a1_range, block)
+
+                # Diff before writing -- ported from gavindsouza/sheets'
+                # get_diff-before-save gate. Reading the range back costs
+                # one extra API call but skips a write entirely when
+                # nothing actually changed since the last run, avoiding
+                # needless quota usage and (once real-time collaborators
+                # are watching the sheet) a spurious "cell updated" flash
+                # for a value that didn't move.
+                current = client.get_values(mapping.spreadsheet_id, a1_range)
+                current_padded = [
+                    (row + [""] * width)[:width] for row in current
+                ] + [[""] * width] * max(len(block) - len(current), 0)
+                if current_padded[: len(block)] != block:
+                    client.update_values(mapping.spreadsheet_id, a1_range, block)
+                    rows_written = len(block)
 
             log.items_processed = len(records)
-            log.items_updated = len(records)
+            log.items_updated = rows_written
             log.save(ignore_permissions=True)
             frappe.db.commit()
 
