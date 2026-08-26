@@ -29,41 +29,38 @@ frappe.ui.form.on("Google Sheets Connector Settings", {
       frm.reload_doc();
     }
 
+    // Deliberately NOT tucked into the "Actions" dropdown -- this is the
+    // single most important action on this whole page (nothing else here
+    // works until an account is connected), so it renders as its own
+    // standalone, primary button in the page toolbar where it can't be
+    // missed.
     if (frm.doc.gs_connected_email) {
-      frm.add_custom_button(
-        __("Disconnect Google Account"),
-        () => {
-          frappe.confirm(
-            __("Disconnect {0}? Scheduled syncs will stop until you reconnect.", [
-              frm.doc.gs_connected_email,
-            ]),
-            () => {
-              frappe.call({
-                method: "alaiy_os_connector_google_sheets.google_sheets.oauth.disconnect",
-                callback: () => {
-                  frappe.show_alert({ message: __("Disconnected."), indicator: "blue" }, 5);
-                  frm.reload_doc();
-                },
-              });
-            },
-          );
-        },
-        __("Actions"),
-      );
+      frm.add_custom_button(__("Disconnect Google Account"), () => {
+        frappe.confirm(
+          __("Disconnect {0}? Scheduled syncs will stop until you reconnect.", [
+            frm.doc.gs_connected_email,
+          ]),
+          () => {
+            frappe.call({
+              method: "alaiy_os_connector_google_sheets.google_sheets.oauth.disconnect",
+              callback: () => {
+                frappe.show_alert({ message: __("Disconnected."), indicator: "blue" }, 5);
+                frm.reload_doc();
+              },
+            });
+          },
+        );
+      });
     } else {
-      frm.add_custom_button(
-        __("Connect Google Account"),
-        () => {
-          frappe.call({
-            method: "alaiy_os_connector_google_sheets.google_sheets.oauth.get_authorization_url",
-            callback(r) {
-              const url = (r.message || {}).url;
-              if (url) window.location.href = url;
-            },
-          });
-        },
-        __("Actions"),
-      );
+      frm.page.set_primary_action(__("Connect Google Account"), () => {
+        frappe.call({
+          method: "alaiy_os_connector_google_sheets.google_sheets.oauth.get_authorization_url",
+          callback(r) {
+            const url = (r.message || {}).url;
+            if (url) window.location.href = url;
+          },
+        });
+      });
     }
 
     frm.add_custom_button(
