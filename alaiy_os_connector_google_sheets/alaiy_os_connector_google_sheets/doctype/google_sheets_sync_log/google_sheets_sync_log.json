@@ -6,6 +6,7 @@
   "editable_grid": 1,
   "engine": "InnoDB",
   "field_order": [
+    "mapping",
     "sync_type",
     "trigger",
     "status",
@@ -21,6 +22,15 @@
     "log_messages"
   ],
   "fields": [
+    {
+      "description": "Which mapping this run synced. Blank for a run that predates mappings existing, or a future run that isn't scoped to one (e.g. a full re-check across all mappings).",
+      "fieldname": "mapping",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Mapping",
+      "options": "Google Sheets Mapping"
+    },
     {
       "fieldname": "sync_type",
       "fieldtype": "Select",

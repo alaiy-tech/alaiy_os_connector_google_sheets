@@ -11,11 +11,16 @@ import frappe
 from frappe.utils import now_datetime
 
 
-def get_or_create_log(sync_type, trigger, log_name=None):
+def get_or_create_log(sync_type, trigger, log_name=None, mapping=None):
     """
     Return the Sync Log to use for this run. If log_name is given (the API
     layer pre-created it so it shows as 'queued' immediately) reuse it;
     otherwise create a fresh one. Newly created logs start as 'queued'.
+
+    mapping (a Google Sheets Mapping name) is optional -- a future run
+    that iterates every enabled mapping in one go can still log without
+    picking one, but the real per-mapping sync logic (issue #3/#4) should
+    always pass it so the Logs list is filterable by mapping.
     """
     if log_name and frappe.db.exists("Google Sheets Sync Log", log_name):
         return frappe.get_doc("Google Sheets Sync Log", log_name)
@@ -23,6 +28,7 @@ def get_or_create_log(sync_type, trigger, log_name=None):
     log = frappe.new_doc("Google Sheets Sync Log")
     log.sync_type = sync_type
     log.trigger = trigger
+    log.mapping = mapping
     log.status = "queued"
     log.insert(ignore_permissions=True)
     frappe.db.commit()

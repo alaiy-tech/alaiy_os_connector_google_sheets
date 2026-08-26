@@ -1,0 +1,49 @@
+{
+  "creation": "2026-08-26 00:00:00.000000",
+  "doctype": "DocType",
+  "editable_grid": 1,
+  "engine": "InnoDB",
+  "field_order": [
+    "doctype_field",
+    "sheet_column",
+    "editable_from_sheet"
+  ],
+  "fields": [
+    {
+      "description": "Fieldname on the mapped doctype, e.g. \"discrepancy_amount\".",
+      "fieldname": "doctype_field",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Doctype Field",
+      "reqd": 1
+    },
+    {
+      "description": "Column letter or header text in the Sheet tab, e.g. \"D\" or \"Discrepancy Amount\".",
+      "fieldname": "sheet_column",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Sheet Column",
+      "reqd": 1
+    },
+    {
+      "default": "0",
+      "description": "If unchecked, this field is pushed to the Sheet (Alaiy OS -> Sheets) but an edit to its cell in the Sheet is never written back -- issue #8's field-level permission mapping. Unchecked is the safe default so a new field never becomes writable from the Sheet by accident.",
+      "fieldname": "editable_from_sheet",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "Editable from Sheet"
+    }
+  ],
+  "istable": 1,
+  "links": [],
+  "modified": "2026-08-26 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Alaiy Os Connector Google Sheets",
+  "name": "Google Sheets Field Map",
+  "owner": "Administrator",
+  "permissions": [],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 0
+}

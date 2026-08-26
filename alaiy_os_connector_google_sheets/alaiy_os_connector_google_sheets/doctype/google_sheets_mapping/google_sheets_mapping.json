@@ -1,0 +1,155 @@
+{
+  "autoname": "field:mapping_name",
+  "creation": "2026-08-26 00:00:00.000000",
+  "doctype": "DocType",
+  "editable_grid": 1,
+  "engine": "InnoDB",
+  "field_order": [
+    "mapping_name",
+    "is_enabled",
+    "sb_source",
+    "source_doctype",
+    "cb_source",
+    "id_field",
+    "sb_sheet",
+    "spreadsheet_id",
+    "sheet_tab",
+    "cb_sheet",
+    "header_row",
+    "sb_fields",
+    "field_map",
+    "sb_status",
+    "last_pull_row_count",
+    "last_push_row_count"
+  ],
+  "fields": [
+    {
+      "description": "A short, permanent label for this mapping, e.g. \"Settlement Reconciliation\". Shown in the Sync Log filter and everywhere this mapping is referenced -- avoid renaming once syncs have run against it.",
+      "fieldname": "mapping_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Mapping Name",
+      "reqd": 1,
+      "unique": 1
+    },
+    {
+      "default": "0",
+      "description": "Unchecked mappings are skipped entirely by both sync directions and the scheduler.",
+      "fieldname": "is_enabled",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "Enabled"
+    },
+    {
+      "fieldname": "sb_source",
+      "fieldtype": "Section Break",
+      "label": "Source Doctype"
+    },
+    {
+      "description": "The Alaiy OS doctype this mapping syncs. Phase 1 targets Settlement Reconciliation only -- other doctypes can be mapped here, but run_pull_sync/run_push_sync only act on enabled mappings once the general sync logic ships (see repo issue #3/#4).",
+      "fieldname": "source_doctype",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Doctype",
+      "options": "DocType",
+      "reqd": 1
+    },
+    {
+      "fieldname": "cb_source",
+      "fieldtype": "Column Break"
+    },
+    {
+      "default": "name",
+      "description": "The doctype field that uniquely identifies a record across syncs -- written into a dedicated column in the Sheet so a row can be matched back to the same record on the next sync (and so a new Sheet row with this column blank is recognised as a record to CREATE, not update). \"name\" (the doctype's own primary key) is correct for almost every doctype.",
+      "fieldname": "id_field",
+      "fieldtype": "Data",
+      "label": "Unique ID Field",
+      "reqd": 1
+    },
+    {
+      "fieldname": "sb_sheet",
+      "fieldtype": "Section Break",
+      "label": "Google Sheet"
+    },
+    {
+      "description": "The Sheet's ID from its URL: docs.google.com/spreadsheets/d/<THIS PART>/edit. The connected Google account (see Google Sheets Connector Settings) must have edit access to it.",
+      "fieldname": "spreadsheet_id",
+      "fieldtype": "Data",
+      "label": "Spreadsheet ID",
+      "reqd": 1
+    },
+    {
+      "description": "The tab name within that spreadsheet, e.g. \"Sheet1\". Case-sensitive, must match exactly.",
+      "fieldname": "sheet_tab",
+      "fieldtype": "Data",
+      "label": "Sheet Tab",
+      "reqd": 1
+    },
+    {
+      "fieldname": "cb_sheet",
+      "fieldtype": "Column Break"
+    },
+    {
+      "default": "1",
+      "description": "Which row in the tab holds column headers. Data starts on the row after this one.",
+      "fieldname": "header_row",
+      "fieldtype": "Int",
+      "label": "Header Row",
+      "reqd": 1
+    },
+    {
+      "fieldname": "sb_fields",
+      "fieldtype": "Section Break",
+      "label": "Field Mapping"
+    },
+    {
+      "description": "Which doctype fields are exposed to this Sheet, and which column each one maps to. Only fields listed here are ever read from or written to the Sheet -- everything else on the doctype stays invisible to Sheet users (P0 acceptance: admin chooses exactly which fields are exposed).",
+      "fieldname": "field_map",
+      "fieldtype": "Table",
+      "label": "Fields",
+      "options": "Google Sheets Field Map",
+      "reqd": 1
+    },
+    {
+      "fieldname": "sb_status",
+      "fieldtype": "Section Break",
+      "label": "Last Sync"
+    },
+    {
+      "fieldname": "last_pull_row_count",
+      "fieldtype": "Int",
+      "label": "Rows Pulled Last Run",
+      "read_only": 1
+    },
+    {
+      "fieldname": "last_push_row_count",
+      "fieldtype": "Int",
+      "label": "Rows Pushed Last Run",
+      "read_only": 1
+    }
+  ],
+  "links": [],
+  "modified": "2026-08-26 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Alaiy Os Connector Google Sheets",
+  "name": "Google Sheets Mapping",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 1
+}
