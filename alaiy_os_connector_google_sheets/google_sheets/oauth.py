@@ -181,14 +181,12 @@ def get_valid_access_token():
     if not refresh_token:
         frappe.throw(_("No Google account connected. Use \"Connect Google Account\" first."))
 
-    if settings.gs_token_expires_at and now_datetime() < settings.gs_token_expires_at:
-        # Access tokens aren't stored (short-lived, 1 hour, low value to
-        # persist) -- a still-valid window just means refreshing again is
-        # unnecessary work, not that there's a cached token to return. Every
-        # real call refreshes; Google's token endpoint has no meaningful
-        # rate limit for this.
-        pass
-
+    # Access tokens aren't cached/stored (short-lived, 1 hour, low value to
+    # persist) -- every real call refreshes unconditionally. Google's token
+    # endpoint has no meaningful rate limit for this, so there's no reason
+    # to track/check gs_token_expires_at here just to skip an occasional
+    # refresh; it's still written below purely for the settings form to
+    # display.
     client_id, client_secret = _client_credentials()
     resp = requests.post(
         _TOKEN_URL,
