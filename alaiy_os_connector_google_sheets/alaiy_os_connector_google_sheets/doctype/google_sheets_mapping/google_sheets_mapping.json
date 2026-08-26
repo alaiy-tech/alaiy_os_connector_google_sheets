@@ -68,10 +68,11 @@
       "reqd": 1
     },
     {
-      "description": "Which Sheet column holds the Unique ID Field's value -- a dedicated column separate from Fields below, since the id is a matching key for the sync itself, not necessarily something meant to be user-visible/editable data. Pull sync (Sheets -> Alaiy OS) uses it to find which record a row belongs to; a row with this column blank is treated as a new record to create.",
+      "description": "A Sheet column LETTER (e.g. \"B\"), not a header name -- holds the Unique ID Field's value, kept separate from Fields below since the id is a matching key for the sync itself, not necessarily something meant to be user-visible/editable data. Pull sync (Sheets -> Alaiy OS) uses it to find which record a row belongs to.",
       "fieldname": "id_column",
       "fieldtype": "Data",
       "label": "ID Column",
+      "placeholder": "e.g. B",
       "reqd": 1
     },
     {
@@ -84,13 +85,15 @@
       "fieldname": "spreadsheet_id",
       "fieldtype": "Data",
       "label": "Spreadsheet ID",
+      "placeholder": "https://docs.google.com/spreadsheets/d/...",
       "reqd": 1
     },
     {
-      "description": "The tab name within that spreadsheet, e.g. \"Sheet1\". Case-sensitive, must match exactly.",
+      "description": "The TAB NAME shown at the bottom of the spreadsheet (not a column letter), e.g. \"Sheet1\". Case-sensitive, must match exactly.",
       "fieldname": "sheet_tab",
       "fieldtype": "Data",
       "label": "Sheet Tab",
+      "placeholder": "e.g. Sheet1",
       "reqd": 1
     },
     {

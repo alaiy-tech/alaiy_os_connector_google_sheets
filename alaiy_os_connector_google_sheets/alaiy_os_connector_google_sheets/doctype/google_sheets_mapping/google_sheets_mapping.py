@@ -12,12 +12,20 @@ from frappe.model.document import Document
 # is alphanumeric plus - and _, always between /d/ and the next /.
 _SPREADSHEET_URL_RE = re.compile(r"/spreadsheets/d/([a-zA-Z0-9_-]+)")
 
+# A Google Sheets column letter is 1+ letters, nothing else -- catches a
+# header name ("Discrepancy Amount"), a full "A1"-style reference, or an
+# accidental letter+number typo before it reaches the sync's own
+# _col_letter_to_index (which would otherwise silently mis-read it as some
+# other column instead of failing loudly here).
+_COLUMN_LETTER_RE = re.compile(r"^[A-Za-z]+$")
+
 
 class GoogleSheetsMapping(Document):
 	def validate(self):
 		self._normalize_spreadsheet_id()
 		self._validate_source_doctype_fields()
 		self._validate_id_field()
+		self._validate_column_letters()
 		self._validate_id_column_not_reused()
 		if self.is_enabled:
 			self._validate_sheet_reachable()
@@ -72,6 +80,26 @@ class GoogleSheetsMapping(Document):
 					self.source_doctype, frappe.bold(self.id_field)
 				)
 			)
+
+	def _validate_column_letters(self):
+		"""Every Sheet Column / ID Column value must be a bare column
+		letter -- a header name or a full "A1"-style cell reference would
+		otherwise pass through to _col_letter_to_index at sync time and
+		either throw a confusing error mid-run or, worse, resolve to the
+		wrong column silently."""
+		if self.id_column and not _COLUMN_LETTER_RE.match(self.id_column.strip()):
+			frappe.throw(
+				_("ID Column must be a plain column letter (e.g. \"B\"), not {0}.").format(
+					frappe.bold(self.id_column)
+				)
+			)
+		for row in self.field_map:
+			if row.sheet_column and not _COLUMN_LETTER_RE.match(row.sheet_column.strip()):
+				frappe.throw(
+					_("Row #{0}: Sheet Column must be a plain column letter (e.g. \"D\"), not {1}.").format(
+						row.idx, frappe.bold(row.sheet_column)
+					)
+				)
 
 	def _validate_id_column_not_reused(self):
 		"""The ID Column is a dedicated, separate column from Fields --

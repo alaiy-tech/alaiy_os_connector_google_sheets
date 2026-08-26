@@ -22,34 +22,42 @@ frappe.ui.form.on("Google Sheets Mapping", {
 
     if (frm.doc.__islocal) return; // buttons below need a saved mapping
 
+    // Both buttons run for every enabled mapping, not just this one --
+    // stated in the toast rather than implied by being on this form.
     frm.add_custom_button(
-      __("Run Alaiy OS -> Sheets Sync"),
+      __("Sync Now: Alaiy OS -> Sheet"),
       () => {
         frappe.call({
           method: "alaiy_os_connector_google_sheets.api.sync.trigger_push_sync",
           callback: () =>
             frappe.show_alert(
-              { message: __("Alaiy OS -> Sheets sync queued for every enabled mapping"), indicator: "blue" },
+              {
+                message: __("Refreshing every enabled mapping's Sheet with the latest Alaiy OS data…"),
+                indicator: "blue",
+              },
               5,
             ),
         });
       },
-      __("Actions"),
+      __("Sync Now"),
     );
 
     frm.add_custom_button(
-      __("Run Sheets -> Alaiy OS Sync"),
+      __("Sync Now: Sheet Edits -> Alaiy OS"),
       () => {
         frappe.call({
           method: "alaiy_os_connector_google_sheets.api.sync.trigger_pull_sync",
           callback: () =>
             frappe.show_alert(
-              { message: __("Sheets -> Alaiy OS sync queued for every enabled mapping"), indicator: "blue" },
+              {
+                message: __("Checking every enabled mapping for Sheet edits to bring in…"),
+                indicator: "blue",
+              },
               5,
             ),
         });
       },
-      __("Actions"),
+      __("Sync Now"),
     );
 
     frm.add_custom_button(

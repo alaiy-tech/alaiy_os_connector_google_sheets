@@ -10,19 +10,21 @@
   ],
   "fields": [
     {
-      "description": "Fieldname on the mapped doctype, e.g. \"discrepancy_amount\".",
+      "description": "The exact fieldname on the mapped doctype (not its label) -- e.g. \"discrepancy_amount\", not \"Discrepancy Amount\".",
       "fieldname": "doctype_field",
       "fieldtype": "Data",
       "in_list_view": 1,
       "label": "Doctype Field",
+      "placeholder": "e.g. discrepancy_amount",
       "reqd": 1
     },
     {
-      "description": "Column letter or header text in the Sheet tab, e.g. \"D\" or \"Discrepancy Amount\".",
+      "description": "A Sheet column LETTER only (e.g. \"D\") -- header text is not supported.",
       "fieldname": "sheet_column",
       "fieldtype": "Data",
       "in_list_view": 1,
       "label": "Sheet Column",
+      "placeholder": "e.g. D",
       "reqd": 1
     },
     {

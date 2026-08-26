@@ -10,7 +10,26 @@ detected and left for an admin to resolve).
 """
 
 import frappe
+from frappe import _
 from frappe.utils import now_datetime
+
+
+@frappe.whitelist()
+def resolve_conflict(sync_state_name):
+    """Clears a flagged conflict. Resets last_synced_value to empty rather
+    than to either side's current value -- the admin may have just edited
+    one side after seeing the conflict, or may resolve it by editing
+    later; either way, an empty baseline makes the NEXT sync treat this
+    field as never-before-synced, so whichever value is current on
+    Frappe or the Sheet at that point applies normally (same as any
+    other first-sync field), instead of guessing which side "won" here."""
+    frappe.only_for("System Manager")
+    doc = frappe.get_doc("Google Sheets Sync State", sync_state_name)
+    if not doc.conflict_flagged:
+        frappe.throw(_("This row isn't flagged as a conflict."))
+    doc.conflict_flagged = 0
+    doc.last_synced_value = ""
+    doc.save()
 
 
 def get_or_create_log(sync_type, trigger, mapping=None):
@@ -182,7 +201,12 @@ def run_pull_sync(trigger="scheduled"):
                         sheet_value = sheet_row[offset] if offset < len(sheet_row) else ""
                         frappe_value = str(doc.get(fieldname) or "")
                         state = sync_state.get((record_id, fieldname))
-                        baseline = state.last_synced_value if state else None
+                        # An empty baseline (no state row yet, or one just
+                        # cleared by resolve_conflict) is treated as "never
+                        # synced" the same way -- otherwise a resolved
+                        # conflict's cleared baseline ("" is not None) would
+                        # still count as a real prior value below.
+                        baseline = (state.last_synced_value or None) if state else None
 
                         if state and state.conflict_flagged:
                             # Already flagged from a previous run and not

@@ -5,6 +5,19 @@ frappe.ui.form.on("Google Sheets Connector Settings", {
     // Mount the shared Alaiy OS connector status card.
     alaiy_os.connector_card.mount(frm, "google_sheets");
 
+    // This page is step 1 of 2 (connect the account here, configure what
+    // syncs on Google Sheets Mapping) -- state that explicitly rather than
+    // relying on the admin to discover the Mapping doctype on their own.
+    frm.dashboard.add_comment(
+      __(
+        "This connects your Google account so Alaiy OS can read and write a Google Sheet. " +
+          "Once connected, go to <a href='/app/google-sheets-mapping'>Google Sheets Mapping</a> " +
+          "to choose what data syncs and to which Sheet.",
+      ),
+      "blue",
+      true,
+    );
+
     // oauth.py's callback() redirects back here with ?google_oauth=... since
     // that request comes from Google's own redirect, not this form's JS --
     // there's no frappe.call promise to resolve a result into, so it's
@@ -91,33 +104,39 @@ frappe.ui.form.on("Google Sheets Connector Settings", {
     );
 
     frm.add_custom_button(
-      __("Run Sheets -> Alaiy OS Sync"),
+      __("Sync Now: Sheet Edits -> Alaiy OS"),
       () => {
         frappe.call({
           method: "alaiy_os_connector_google_sheets.api.sync.trigger_pull_sync",
           callback: () =>
             frappe.show_alert(
-              { message: __("Sheets -> Alaiy OS sync queued"), indicator: "blue" },
+              {
+                message: __("Checking every enabled mapping for Sheet edits to bring in…"),
+                indicator: "blue",
+              },
               5,
             ),
         });
       },
-      __("Actions"),
+      __("Sync Now"),
     );
 
     frm.add_custom_button(
-      __("Run Alaiy OS -> Sheets Sync"),
+      __("Sync Now: Alaiy OS -> Sheet"),
       () => {
         frappe.call({
           method: "alaiy_os_connector_google_sheets.api.sync.trigger_push_sync",
           callback: () =>
             frappe.show_alert(
-              { message: __("Alaiy OS -> Sheets sync queued"), indicator: "blue" },
+              {
+                message: __("Refreshing every enabled mapping's Sheet with the latest Alaiy OS data…"),
+                indicator: "blue",
+              },
               5,
             ),
         });
       },
-      __("Actions"),
+      __("Sync Now"),
     );
   },
 });
