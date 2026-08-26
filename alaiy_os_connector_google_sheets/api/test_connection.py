@@ -13,7 +13,10 @@ import frappe
 @frappe.whitelist()
 def test_connection():
     doc = frappe.get_single("Google Sheets Connector Settings")
-    if not doc.gs_refresh_token:
+    # doc.gs_refresh_token (a Password field) is not decrypted on a plain
+    # attribute read -- get_password() is required to see whether a real
+    # value is actually stored, same as oauth.py's own checks.
+    if not (doc.get_password("gs_refresh_token") if doc.gs_refresh_token else None):
         return {"success": False, "message": "No Google account connected yet."}
 
     from alaiy_os_connector_google_sheets.google_sheets.oauth import get_valid_access_token
