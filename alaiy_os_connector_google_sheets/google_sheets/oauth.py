@@ -161,6 +161,17 @@ def callback(code=None, state=None, error=None):
         frappe.local.response["location"] = f"{settings_url}?google_oauth=error&reason=exchange_failed"
 
 
+@frappe.whitelist()
+def get_connection_status():
+    """Cheap, DB-only check of whether a Google account is connected --
+    unlike get_valid_access_token(), never calls Google, so it's safe to
+    call on every page load (e.g. Google Sheets Mapping's form) without
+    burning a real token refresh just to show a status pill."""
+    settings = frappe.get_single("Google Sheets Connector Settings")
+    connected = bool(settings.get_password("gs_refresh_token") if settings.gs_refresh_token else None)
+    return {"connected": connected, "email": settings.gs_connected_email or ""}
+
+
 def _fetch_email(access_token):
     resp = requests.get(
         _USERINFO_URL,
