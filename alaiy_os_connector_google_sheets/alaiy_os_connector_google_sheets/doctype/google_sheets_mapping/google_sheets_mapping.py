@@ -1,17 +1,39 @@
 # Copyright (c) 2026, Alaiy and contributors
 # For license information, please see license.txt
 
+import re
+
 import frappe
 from frappe import _
 from frappe.model.document import Document
 
+# Matches the id segment out of a real Sheets URL, e.g.
+# https://docs.google.com/spreadsheets/d/<ID>/edit#gid=0 -- the id itself
+# is alphanumeric plus - and _, always between /d/ and the next /.
+_SPREADSHEET_URL_RE = re.compile(r"/spreadsheets/d/([a-zA-Z0-9_-]+)")
+
 
 class GoogleSheetsMapping(Document):
 	def validate(self):
+		self._normalize_spreadsheet_id()
 		self._validate_source_doctype_fields()
 		self._validate_id_field_is_mapped()
 		if self.is_enabled:
 			self._validate_sheet_reachable()
+
+	def _normalize_spreadsheet_id(self):
+		"""Accept either the bare Spreadsheet ID or the full Sheet URL --
+		copy-pasting the browser URL (the more natural thing to paste) is
+		the common case, and rejecting it in favor of "go extract the ID
+		yourself" is needless friction. Extracts the ID and rewrites the
+		field so everything downstream (validation, later sync calls) only
+		ever deals with the plain ID Google's API actually wants."""
+		value = (self.spreadsheet_id or "").strip()
+		match = _SPREADSHEET_URL_RE.search(value)
+		if match:
+			self.spreadsheet_id = match.group(1)
+		else:
+			self.spreadsheet_id = value
 
 	def _validate_source_doctype_fields(self):
 		"""Every mapped fieldname must be a real field on the source

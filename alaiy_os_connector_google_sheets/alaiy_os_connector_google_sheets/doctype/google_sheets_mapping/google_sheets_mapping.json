@@ -72,7 +72,7 @@
       "label": "Google Sheet"
     },
     {
-      "description": "The Sheet's ID from its URL: docs.google.com/spreadsheets/d/<THIS PART>/edit. The connected Google account (see Google Sheets Connector Settings) must have edit access to it.",
+      "description": "Paste either the full Sheet URL or just its ID -- if you paste the URL, the ID is extracted automatically on save. The connected Google account (see Google Sheets Connector Settings) must have edit access to it.",
       "fieldname": "spreadsheet_id",
       "fieldtype": "Data",
       "label": "Spreadsheet ID",
