@@ -2,41 +2,42 @@
 # For license information, please see license.txt
 """
 Whitelisted entry points the Alaiy OS connector card and the settings form
-call to kick off / inspect syncs. These stay thin: create the log so it shows
-up as "queued" immediately, then enqueue the real work on the long queue.
+call to kick off / inspect syncs. These stay thin: enqueue the real work
+on the long queue and return immediately.
+
+No log is pre-created here (unlike the template this was cloned from) --
+run_pull_sync/run_push_sync fan out over every enabled Google Sheets
+Mapping and create one Sync Log per mapping themselves (see
+google_sheets/sync.py), so there is no single log to show as "queued"
+in advance; the Logs list picks up each mapping's row once its own sync
+actually starts.
 """
 
 import frappe
 
-from alaiy_os_connector_google_sheets.google_sheets.sync import get_or_create_log
-
 
 @frappe.whitelist()
 def trigger_pull_sync():
-    """Manually enqueue a 'pull' sync (Sheets → Frappe)."""
-    log = get_or_create_log("pull", "manual")
+    """Manually enqueue a 'pull' sync (Sheets → Alaiy OS) for every enabled mapping."""
     frappe.enqueue(
         "alaiy_os_connector_google_sheets.google_sheets.sync.run_pull_sync",
         queue="long",
         timeout=600,
         trigger="manual",
-        log_name=log.name,
     )
-    return {"queued": True, "log_name": log.name}
+    return {"queued": True}
 
 
 @frappe.whitelist()
 def trigger_push_sync():
-    """Manually enqueue a 'push' sync (Frappe → Sheets)."""
-    log = get_or_create_log("push", "manual")
+    """Manually enqueue a 'push' sync (Alaiy OS → Sheets) for every enabled mapping."""
     frappe.enqueue(
         "alaiy_os_connector_google_sheets.google_sheets.sync.run_push_sync",
         queue="long",
         timeout=600,
         trigger="manual",
-        log_name=log.name,
     )
-    return {"queued": True, "log_name": log.name}
+    return {"queued": True}
 
 
 @frappe.whitelist()
