@@ -60,30 +60,33 @@ def _index_to_col_letter(index):
 
 
 @frappe.whitelist()
-def map_all_fields(mapping_name, skip_id_field=True, start_column=None):
-    """Replace the Field Map table with every syncable field on the
-    mapping's source doctype, each assigned the next Sheet column in order
-    starting from `start_column` (or right after the existing ID Column if
-    one is already set). Real fieldnames only -- draws from the identical
-    list get_syncable_fields returns, so nothing added here could fail
-    google_sheets_mapping.py's own validate().
+def map_all_fields(source_doctype, id_field=None, id_column=None, skip_id_field=True, start_column=None):
+    """Every syncable field on `source_doctype`, each assigned the next
+    Sheet column in order starting from `start_column` (or right after
+    `id_column` if one is already set). Real fieldnames only -- draws from
+    the identical list get_syncable_fields returns, so nothing added here
+    could fail google_sheets_mapping.py's own validate().
 
-    Does not save the document -- returns the row data for the form to
-    apply and let the admin review/adjust before saving, same as any other
-    "fill this in for me" helper (the admin might want to unmap a field
-    they don't actually want Sheet-visible before committing).
+    Takes the doctype/id-field/id-column as plain arguments rather than a
+    saved Mapping name -- this needs to work on a brand-new, not-yet-saved
+    Mapping form (the whole point is filling in Fields before the first
+    save, not only after), so there is no document to look up yet.
+
+    Returns the row data for the form to apply and let the admin
+    review/adjust before saving, same as any other "fill this in for me"
+    helper (the admin might want to unmap a field they don't actually
+    want Sheet-visible before committing).
     """
-    doc = frappe.get_doc("Google Sheets Mapping", mapping_name)
-    if not doc.source_doctype:
+    if not source_doctype:
         frappe.throw(_("Choose a Doctype before mapping fields."))
 
-    fields = get_syncable_fields(doc.source_doctype)
-    id_field = (doc.id_field or "name").strip()
+    fields = get_syncable_fields(source_doctype)
+    id_field = (id_field or "name").strip()
 
     if start_column:
         start_index = _col_letter_to_index(start_column)
-    elif doc.id_column:
-        start_index = _col_letter_to_index(doc.id_column.strip()) + 1
+    elif id_column:
+        start_index = _col_letter_to_index(id_column.strip()) + 1
     else:
         start_index = 0
 

@@ -51,7 +51,7 @@ frappe.ui.form.on("Google Sheets Mapping", {
       fetchSyncableFields(frm.doc.source_doctype);
     }
 
-    if (!frm.doc.__islocal && frm.doc.source_doctype) {
+    if (frm.doc.source_doctype) {
       frm.add_custom_button(
         __("Map All Fields"),
         () => {
@@ -63,7 +63,11 @@ frappe.ui.form.on("Google Sheets Mapping", {
             () => {
               frappe.call({
                 method: "alaiy_os_connector_google_sheets.api.mapping.map_all_fields",
-                args: { mapping_name: frm.doc.name },
+                args: {
+                  source_doctype: frm.doc.source_doctype,
+                  id_field: frm.doc.id_field,
+                  id_column: frm.doc.id_column,
+                },
                 callback: (r) => {
                   const rows = (r.message || {}).rows || [];
                   frm.clear_table("field_map");
