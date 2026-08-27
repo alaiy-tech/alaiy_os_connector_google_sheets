@@ -339,6 +339,29 @@ def run_push_sync(trigger="scheduled"):
             end_row = start_row + max(len(rows) - 1, 0)
             width = max_col - min_col + 1
 
+            # Write the header row itself -- confirmed live, header_row was
+            # only ever used to compute where DATA starts; nothing wrote the
+            # titles into it, so a sheet with no headers already typed in by
+            # hand synced real data into a column-title-less grid with no
+            # way to tell which column was which. Real field labels (not
+            # raw fieldnames -- "Item Name", not "item_name"), same
+            # min_col..max_col contiguous block shape as the data write
+            # below, skipped if that exact row already has the same values
+            # (no point re-writing an unchanged header on every push).
+            field_labels = {df.fieldname: (df.label or df.fieldname) for df in meta.fields}
+            field_labels[id_field] = field_labels.get(id_field) or id_field
+            header_cells = [""] * width
+            for f, col_letter in zip(fields, columns):
+                header_cells[_col_letter_to_index(col_letter) - min_col] = field_labels.get(f, f)
+            header_range = (
+                f"{mapping.sheet_tab}!{_index_to_col_letter(min_col)}{mapping.header_row}"
+                f":{_index_to_col_letter(max_col)}{mapping.header_row}"
+            )
+            current_header = client.get_values(mapping.spreadsheet_id, header_range)
+            current_header_row = (current_header[0] if current_header else []) + [""] * width
+            if current_header_row[:width] != header_cells:
+                client.update_values(mapping.spreadsheet_id, header_range, [header_cells])
+
             rows_written = 0
             if rows:
                 start_col = _index_to_col_letter(min_col)
