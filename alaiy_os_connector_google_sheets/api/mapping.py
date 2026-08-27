@@ -26,23 +26,48 @@ _UNSYNCABLE_FIELDTYPES = {
     "HTML", "Button", "Fold", "Heading",
 }
 
+# Fieldtypes that identify or point at another record -- editing these from
+# a Sheet risks pointing a real document at the wrong record entirely (a
+# typo'd Link value, an ambiguous Dynamic Link), unlike a plain data value
+# where a bad edit just needs re-correcting. Offered in the picker (an
+# admin may genuinely want one visible/editable), but Map All Fields leaves
+# these unchecked by default rather than assuming editable.
+_ID_LIKE_FIELDTYPES = {"Link", "Dynamic Link"}
+
 
 @frappe.whitelist()
 def get_syncable_fields(doctype):
     """Every real field on `doctype` that can be mapped to a Sheet column --
     the same population the picker dropdown and Map All Fields button both
     draw from, so what's offered always matches what save-time validation
-    would actually accept."""
+    would actually accept.
+
+    Each field carries suggested_editable -- whether Map All Fields should
+    check "Editable from Sheet" for it by default. A Link/Dynamic Link
+    stays unchecked (editing one wrong from a Sheet points a real document
+    at the wrong record, not just a bad value to re-correct) and so does
+    anything Frappe itself marks read_only (a calculated total, a system-
+    managed value -- editing it from a Sheet would never actually take
+    effect on save anyway). Everything else defaults to editable, since
+    that's the whole point of exposing it to a Sheet in the first place.
+    """
     if not doctype or not frappe.db.exists("DocType", doctype):
         frappe.throw(_("Choose a Doctype first."))
 
     meta = frappe.get_meta(doctype)
     fields = [
-        {"fieldname": df.fieldname, "label": df.label or df.fieldname, "fieldtype": df.fieldtype}
+        {
+            "fieldname": df.fieldname,
+            "label": df.label or df.fieldname,
+            "fieldtype": df.fieldtype,
+            "suggested_editable": not (df.fieldtype in _ID_LIKE_FIELDTYPES or df.read_only),
+        }
         for df in meta.fields
         if df.fieldtype not in _UNSYNCABLE_FIELDTYPES
     ]
-    fields.insert(0, {"fieldname": "name", "label": "ID (name)", "fieldtype": "Data"})
+    fields.insert(0, {
+        "fieldname": "name", "label": "ID (name)", "fieldtype": "Data", "suggested_editable": False,
+    })
     return fields
 
 
@@ -103,7 +128,7 @@ def map_all_fields(source_doctype, id_field=None, id_column=None, skip_id_field=
         rows.append({
             "doctype_field": f["fieldname"],
             "sheet_column": _index_to_col_letter(col_index),
-            "editable_from_sheet": 0,
+            "editable_from_sheet": 1 if f["suggested_editable"] else 0,
         })
         col_index += 1
 
