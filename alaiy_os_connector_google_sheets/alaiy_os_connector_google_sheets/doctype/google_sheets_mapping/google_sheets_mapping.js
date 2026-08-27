@@ -19,6 +19,56 @@ function fetchSyncableFields(doctype) {
   });
 }
 
+/** Called from both refresh (page load) and the source_doctype field
+ * handler (picking a value after the form is already open, which does
+ * NOT trigger a full refresh) -- a Link field change is its own event,
+ * not a form refresh, so the button needs its own explicit add on that
+ * path too. remove_custom_button first since this can run more than
+ * once per page view (switching Doctype twice) and add_custom_button
+ * has no built-in de-dup -- without it, picking a different doctype
+ * would stack a second "Map All Fields" button rather than replacing
+ * the first. */
+function add_map_all_fields_button(frm) {
+  frm.remove_custom_button(__("Map All Fields"), __("Fields"));
+  if (!frm.doc.source_doctype) return;
+
+  frm.add_custom_button(
+    __("Map All Fields"),
+    () => {
+      frappe.confirm(
+        __(
+          "This replaces the current Fields table with every field on {0}, each assigned the next Sheet column in order. Review and remove any you don't want Sheet-visible before saving.",
+          [frappe.utils.escape_html(frm.doc.source_doctype)],
+        ),
+        () => {
+          frappe.call({
+            method: "alaiy_os_connector_google_sheets.api.mapping.map_all_fields",
+            args: {
+              source_doctype: frm.doc.source_doctype,
+              id_field: frm.doc.id_field,
+              id_column: frm.doc.id_column,
+            },
+            callback: (r) => {
+              const rows = (r.message || {}).rows || [];
+              frm.clear_table("field_map");
+              rows.forEach((row) => {
+                const child = frm.add_child("field_map");
+                Object.assign(child, row);
+              });
+              frm.refresh_field("field_map");
+              frappe.show_alert(
+                { message: __("Mapped {0} field(s). Save to apply.", [rows.length]), indicator: "green" },
+                5,
+              );
+            },
+          });
+        },
+      );
+    },
+    __("Fields"),
+  );
+}
+
 frappe.ui.form.on("Google Sheets Mapping", {
   source_doctype(frm) {
     // Stale options for the old doctype must not linger in the grid --
@@ -27,6 +77,7 @@ frappe.ui.form.on("Google Sheets Mapping", {
     _syncableFieldsCache = null;
     _syncableFieldsForDoctype = null;
     if (frm.doc.source_doctype) fetchSyncableFields(frm.doc.source_doctype);
+    add_map_all_fields_button(frm);
   },
 
   refresh(frm) {
@@ -51,43 +102,7 @@ frappe.ui.form.on("Google Sheets Mapping", {
       fetchSyncableFields(frm.doc.source_doctype);
     }
 
-    if (frm.doc.source_doctype) {
-      frm.add_custom_button(
-        __("Map All Fields"),
-        () => {
-          frappe.confirm(
-            __(
-              "This replaces the current Fields table with every field on {0}, each assigned the next Sheet column in order. Review and remove any you don't want Sheet-visible before saving.",
-              [frappe.utils.escape_html(frm.doc.source_doctype)],
-            ),
-            () => {
-              frappe.call({
-                method: "alaiy_os_connector_google_sheets.api.mapping.map_all_fields",
-                args: {
-                  source_doctype: frm.doc.source_doctype,
-                  id_field: frm.doc.id_field,
-                  id_column: frm.doc.id_column,
-                },
-                callback: (r) => {
-                  const rows = (r.message || {}).rows || [];
-                  frm.clear_table("field_map");
-                  rows.forEach((row) => {
-                    const child = frm.add_child("field_map");
-                    Object.assign(child, row);
-                  });
-                  frm.refresh_field("field_map");
-                  frappe.show_alert(
-                    { message: __("Mapped {0} field(s). Save to apply.", [rows.length]), indicator: "green" },
-                    5,
-                  );
-                },
-              });
-            },
-          );
-        },
-        __("Fields"),
-      );
-    }
+    add_map_all_fields_button(frm);
 
     // A mapping is useless without a connected Google account -- check and
     // show it right here instead of making the admin guess or go check
