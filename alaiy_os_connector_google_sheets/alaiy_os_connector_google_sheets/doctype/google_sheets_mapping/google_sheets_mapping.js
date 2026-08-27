@@ -88,10 +88,19 @@ function add_map_all_fields_button(frm) {
 function wire_doctype_field_autocomplete(frm) {
   const grid = frm.fields_dict.field_map.grid;
   if (!frm.doc.source_doctype) {
+    // No doctype chosen yet means there is no real field list to offer or
+    // validate against -- free text typed here (confirmed live) is
+    // guaranteed garbage, since the very next server-side save would
+    // reject it anyway (google_sheets_mapping.py's
+    // _validate_source_doctype_fields requires source_doctype to even
+    // check a value). Lock the column outright rather than let it sit
+    // open with nothing behind it.
     grid.update_docfield_property("doctype_field", "options", []);
+    grid.update_docfield_property("doctype_field", "read_only", 1);
     return;
   }
 
+  grid.update_docfield_property("doctype_field", "read_only", 0);
   fetchSyncableFields(frm.doc.source_doctype).then((fields) => {
     const options = fields.map((f) => ({
       value: f.fieldname,
