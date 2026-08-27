@@ -70,43 +70,43 @@ function add_map_all_fields_button(frm) {
 }
 
 /** Called from both refresh (page load) and the source_doctype field
- * handler -- same reason as add_map_all_fields_button below: picking a
- * Link field's value is its own event, not a full form refresh, so this
- * needs its own explicit call on that path too. Confirmed live: typing
- * directly into a Fields row (instead of using Map All Fields) showed no
- * dropdown options at all until the page was reloaded after choosing a
- * Doctype, for the exact same reason the button didn't appear. */
+ * handler -- picking a Link field's value is its own event, not a full
+ * form refresh, so this needs its own explicit call on that path too.
+ *
+ * Confirmed against Frappe's real ControlAutocomplete source
+ * (frappe/public/js/frappe/form/controls/autocomplete.js): two earlier
+ * attempts set a get_data() FUNCTION on the docfield, which is not how
+ * this control reads its options at all -- get_data() is a method on the
+ * control INSTANCE that returns its own internal _data, populated by
+ * set_data(), which itself only ever gets called from set_options() off
+ * df.options (a plain array) or from a df.get_query round trip. Setting
+ * an unused get_data property on the docfield did nothing in either the
+ * inline grid cell or the row dialog -- confirmed live, no suggestions
+ * appeared in either, and free text saved with zero validation feedback.
+ * The real, working mechanism is df.options -- a plain {label,value}[]
+ * array, read once when the control is created. */
 function wire_doctype_field_autocomplete(frm) {
-  if (!frm.doc.source_doctype) return;
   const grid = frm.fields_dict.field_map.grid;
-  grid.update_docfield_property("doctype_field", "fieldtype", "Autocomplete");
+  if (!frm.doc.source_doctype) {
+    grid.update_docfield_property("doctype_field", "options", []);
+    return;
+  }
 
-  const get_data = () => {
-    // Autocomplete's get_data must return synchronously -- the fields
-    // list is fetched once (see fetchSyncableFields' cache above) and
-    // reused here; on a genuinely first-ever open before that fetch
-    // lands, this returns nothing for one keystroke rather than
-    // blocking the input, which resolves itself the moment the fetch
-    // finishes and the admin types again.
-    return (_syncableFieldsForDoctype === frm.doc.source_doctype ? _syncableFieldsCache : []).map(
-      (f) => ({ value: f.fieldname, label: `${f.label} (${f.fieldname})`, description: f.fieldtype }),
-    );
-  };
-
-  // Two separate rendering paths in Frappe's grid, each reading get_data
-  // off a different object -- confirmed against the real framework source
-  // (frappe/public/js/frappe/form/grid_row.js): the row-edit dialog (what
-  // the pencil icon opens) uses the child column's own docfield, via
-  // grid.get_field(). The INLINE cell in the grid table itself instead
-  // checks this.grid.df.get_data -- the Table field's own docfield, a
-  // completely different object. Setting only the first (what get_field
-  // returns) is why suggestions worked from the pencil dialog but typing
-  // straight into the grid cell showed nothing at all.
-  grid.get_field("doctype_field").get_data = get_data;
-  const table_docfield = grid.df;
-  if (table_docfield) table_docfield.get_data = get_data;
-
-  fetchSyncableFields(frm.doc.source_doctype);
+  fetchSyncableFields(frm.doc.source_doctype).then((fields) => {
+    const options = fields.map((f) => ({
+      value: f.fieldname,
+      label: `${f.label} (${f.fieldname})`,
+      description: f.fieldtype,
+    }));
+    grid.update_docfield_property("doctype_field", "fieldtype", "Autocomplete");
+    grid.update_docfield_property("doctype_field", "options", options);
+    // update_docfield_property only touches the stored docfield -- any
+    // row/control already rendered before this fetch resolved is still
+    // showing the OLD (or empty) options. refresh_field re-renders every
+    // row's control from the now-updated docfield so a row added before
+    // the fetch landed doesn't stay stuck with nothing.
+    frm.refresh_field("field_map");
+  });
 }
 
 frappe.ui.form.on("Google Sheets Mapping", {
