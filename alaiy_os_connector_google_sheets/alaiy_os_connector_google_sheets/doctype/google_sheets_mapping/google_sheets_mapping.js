@@ -69,6 +69,31 @@ function add_map_all_fields_button(frm) {
   );
 }
 
+/** Called from both refresh (page load) and the source_doctype field
+ * handler -- same reason as add_map_all_fields_button below: picking a
+ * Link field's value is its own event, not a full form refresh, so this
+ * needs its own explicit call on that path too. Confirmed live: typing
+ * directly into a Fields row (instead of using Map All Fields) showed no
+ * dropdown options at all until the page was reloaded after choosing a
+ * Doctype, for the exact same reason the button didn't appear. */
+function wire_doctype_field_autocomplete(frm) {
+  if (!frm.doc.source_doctype) return;
+  const grid = frm.fields_dict.field_map.grid;
+  grid.update_docfield_property("doctype_field", "fieldtype", "Autocomplete");
+  grid.get_field("doctype_field").get_data = () => {
+    // Autocomplete's get_data must return synchronously -- the fields
+    // list is fetched once (see fetchSyncableFields' cache above) and
+    // reused here; on a genuinely first-ever open before that fetch
+    // lands, this returns nothing for one keystroke rather than
+    // blocking the input, which resolves itself the moment the fetch
+    // finishes and the admin types again.
+    return (_syncableFieldsForDoctype === frm.doc.source_doctype ? _syncableFieldsCache : []).map(
+      (f) => ({ value: f.fieldname, label: `${f.label} (${f.fieldname})`, description: f.fieldtype }),
+    );
+  };
+  fetchSyncableFields(frm.doc.source_doctype);
+}
+
 frappe.ui.form.on("Google Sheets Mapping", {
   source_doctype(frm) {
     // Stale options for the old doctype must not linger in the grid --
@@ -76,32 +101,12 @@ frappe.ui.form.on("Google Sheets Mapping", {
     // otherwise still see the previous doctype's fieldnames on offer.
     _syncableFieldsCache = null;
     _syncableFieldsForDoctype = null;
-    if (frm.doc.source_doctype) fetchSyncableFields(frm.doc.source_doctype);
+    wire_doctype_field_autocomplete(frm);
     add_map_all_fields_button(frm);
   },
 
   refresh(frm) {
-    // Real field picker for Fields' Doctype Field column -- an Autocomplete
-    // instead of free-text Data, sourced from the actual fields on
-    // source_doctype, so an admin selects a real fieldname instead of
-    // typing it and risking a typo that only surfaces at save time.
-    if (frm.doc.source_doctype) {
-      const grid = frm.fields_dict.field_map.grid;
-      grid.update_docfield_property("doctype_field", "fieldtype", "Autocomplete");
-      grid.get_field("doctype_field").get_data = () => {
-        // Autocomplete's get_data must return synchronously -- the fields
-        // list is fetched once (see fetchSyncableFields' cache above) and
-        // reused here; on a genuinely first-ever open before that fetch
-        // lands, this returns nothing for one keystroke rather than
-        // blocking the input, which resolves itself the moment the fetch
-        // finishes and the admin types again.
-        return (_syncableFieldsForDoctype === frm.doc.source_doctype ? _syncableFieldsCache : []).map(
-          (f) => ({ value: f.fieldname, label: `${f.label} (${f.fieldname})`, description: f.fieldtype }),
-        );
-      };
-      fetchSyncableFields(frm.doc.source_doctype);
-    }
-
+    wire_doctype_field_autocomplete(frm);
     add_map_all_fields_button(frm);
 
     // A mapping is useless without a connected Google account -- check and
