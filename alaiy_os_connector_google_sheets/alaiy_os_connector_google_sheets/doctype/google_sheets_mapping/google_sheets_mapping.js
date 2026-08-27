@@ -80,7 +80,8 @@ function wire_doctype_field_autocomplete(frm) {
   if (!frm.doc.source_doctype) return;
   const grid = frm.fields_dict.field_map.grid;
   grid.update_docfield_property("doctype_field", "fieldtype", "Autocomplete");
-  grid.get_field("doctype_field").get_data = () => {
+
+  const get_data = () => {
     // Autocomplete's get_data must return synchronously -- the fields
     // list is fetched once (see fetchSyncableFields' cache above) and
     // reused here; on a genuinely first-ever open before that fetch
@@ -91,6 +92,20 @@ function wire_doctype_field_autocomplete(frm) {
       (f) => ({ value: f.fieldname, label: `${f.label} (${f.fieldname})`, description: f.fieldtype }),
     );
   };
+
+  // Two separate rendering paths in Frappe's grid, each reading get_data
+  // off a different object -- confirmed against the real framework source
+  // (frappe/public/js/frappe/form/grid_row.js): the row-edit dialog (what
+  // the pencil icon opens) uses the child column's own docfield, via
+  // grid.get_field(). The INLINE cell in the grid table itself instead
+  // checks this.grid.df.get_data -- the Table field's own docfield, a
+  // completely different object. Setting only the first (what get_field
+  // returns) is why suggestions worked from the pencil dialog but typing
+  // straight into the grid cell showed nothing at all.
+  grid.get_field("doctype_field").get_data = get_data;
+  const table_docfield = grid.df;
+  if (table_docfield) table_docfield.get_data = get_data;
+
   fetchSyncableFields(frm.doc.source_doctype);
 }
 
