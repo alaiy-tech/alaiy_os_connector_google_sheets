@@ -58,14 +58,16 @@ def _maybe_enqueue(interval_setting, sync_type, enqueue_fn):
     if running and (now - running).total_seconds() < _STALE_RUNNING_SECONDS:
         return
 
-    # Skip if the last success is still inside the configured interval.
-    last_success = frappe.db.get_value(
+    # Skip if the last finished run, successful or failed, is still inside the
+    # configured interval -- a failing sync retries once per interval, not
+    # every minute.
+    last_run = frappe.db.get_value(
         "Google Sheets Sync Log",
-        {"sync_type": sync_type, "status": "success"},
+        {"sync_type": sync_type, "status": ["in", ["success", "failed"]]},
         "started_at",
         order_by="started_at desc",
     )
-    if last_success and now < add_to_date(last_success, minutes=interval_minutes):
+    if last_run and now < add_to_date(last_run, minutes=interval_minutes):
         return
 
     frappe.enqueue(enqueue_fn, queue="long", timeout=600, trigger="scheduled")

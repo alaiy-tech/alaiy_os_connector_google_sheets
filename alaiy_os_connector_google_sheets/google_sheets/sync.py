@@ -78,7 +78,8 @@ def _run(sync_type, trigger, worker, mapping=None):
             title=f"Google Sheets connector: {sync_type} sync failed",
             message=frappe.get_traceback(),
         )
-        raise
+        # Logged and recorded on the Sync Log; the caller keeps going so one
+        # failing mapping does not stop the mappings after it.
 
 
 def _enabled_mappings():
@@ -133,6 +134,51 @@ def _col_letter_to_index(letter):
     return index - 1
 
 
+_HTML_TYPES = ("Text Editor", "HTML Editor", "HTML")
+_NUMERIC_TYPES = ("Int", "Long Int", "Float", "Currency", "Percent")
+_TRUE_TEXT = ("1", "true", "yes", "y")
+
+
+def _norm(value, df):
+    """Canonical text of one value. Frappe values and Sheet cells both go
+    through this, so a baseline written by one direction compares equal to
+    the other direction's reading of the same value (HTML stripped, 10.0
+    and "10" alike, True and "TRUE" alike)."""
+    if value is None:
+        return ""
+    fieldtype = df.fieldtype if df else ""
+    if fieldtype in _HTML_TYPES:
+        return frappe.utils.strip_html(str(value)).strip()
+    if fieldtype == "Check":
+        return "1" if str(value).strip().lower() in _TRUE_TEXT else "0"
+    if fieldtype in _NUMERIC_TYPES:
+        text = str(value).strip().replace(",", "")
+        if not text:
+            return ""
+        try:
+            number = float(text)
+        except ValueError:
+            return text
+        return str(int(number)) if number.is_integer() else repr(number)
+    return str(value)
+
+
+def _coerce(text, df):
+    """Sheet text back to a value the field accepts: an empty cell on a
+    typed field is None, not an empty string a Link/Date would reject."""
+    fieldtype = df.fieldtype if df else ""
+    if fieldtype == "Check":
+        return 1 if text == "1" else 0
+    if fieldtype in _NUMERIC_TYPES:
+        if text == "":
+            return None
+        number = float(text)
+        return int(number) if fieldtype in ("Int", "Long Int") else number
+    if text == "" and fieldtype not in ("Data", "Small Text", "Text", "Long Text", "Text Editor", "Code", "Select"):
+        return None
+    return text
+
+
 def run_pull_sync(trigger="scheduled"):
     """Sheets -> Alaiy OS: for every enabled mapping, read the mapped
     range from the Sheet, match each row back to a record via the ID
@@ -185,21 +231,24 @@ def run_pull_sync(trigger="scheduled"):
             id_col_offset = _col_letter_to_index(mapping.id_column) - min_col
             field_col_offsets = [(f, _col_letter_to_index(c) - min_col) for f, c in zip(fields, columns)]
             sync_state = _load_sync_state(mapping_name)
+            meta = frappe.get_meta(mapping.source_doctype)
 
             processed, updated, failed, skipped, conflicts = 0, 0, 0, 0, 0
             for sheet_row in sheet_rows:
                 processed += 1
                 record_id = sheet_row[id_col_offset].strip() if id_col_offset < len(sheet_row) else ""
-                if not record_id or not frappe.db.exists(mapping.source_doctype, {mapping.id_field: record_id}):
+                docname = frappe.db.get_value(mapping.source_doctype, {mapping.id_field: record_id}, "name") if record_id else None
+                if not docname:
                     skipped += 1
                     continue
 
                 try:
-                    doc = frappe.get_doc(mapping.source_doctype, {mapping.id_field: record_id})
+                    doc = frappe.get_doc(mapping.source_doctype, docname)
                     changed = False
                     for fieldname, offset in field_col_offsets:
-                        sheet_value = sheet_row[offset] if offset < len(sheet_row) else ""
-                        frappe_value = str(doc.get(fieldname) or "")
+                        df = meta.get_field(fieldname)
+                        sheet_value = _norm(sheet_row[offset] if offset < len(sheet_row) else "", df)
+                        frappe_value = _norm(doc.get(fieldname), df)
                         state = sync_state.get((record_id, fieldname))
                         # An empty baseline (no state row yet, or one just
                         # cleared by resolve_conflict) is treated as "never
@@ -241,13 +290,16 @@ def run_pull_sync(trigger="scheduled"):
                         # Only the Sheet moved (or there's no baseline yet,
                         # i.e. first sync ever for this field) -- apply it,
                         # same behavior as before conflict detection existed.
-                        doc.set(fieldname, sheet_value)
+                        doc.set(fieldname, _coerce(sheet_value, df))
                         changed = True
                         _save_sync_state(mapping_name, record_id, fieldname, sheet_value, state)
 
                     if changed:
                         doc.save()
                         updated += 1
+                    # One row, one transaction: a later row that fails must not
+                    # undo this row's save or its sync-state baselines.
+                    frappe.db.commit()
                 except Exception:
                     failed += 1
                     frappe.log_error(
@@ -255,8 +307,6 @@ def run_pull_sync(trigger="scheduled"):
                         message=f"record_id={record_id}\n{frappe.get_traceback()}",
                     )
                     frappe.db.rollback()
-
-            frappe.db.commit()
 
             log.items_processed = processed
             log.items_updated = updated
@@ -293,125 +343,113 @@ def run_push_sync(trigger="scheduled"):
             fields = [row.doctype_field for row in mapping.field_map] + [mapping.id_field]
             columns = [row.sheet_column for row in mapping.field_map] + [mapping.id_column]
 
-            # Text Editor / HTML / Code fields store raw markup as their
-            # real value -- confirmed live on ToDo.description, which
-            # pushed <div class="ql-editor...">...</div> straight into the
-            # Sheet instead of the plain text a Sheet user actually wants
-            # to see. Strip tags for exactly these fieldtypes; every other
-            # fieldtype's value is written as-is, unchanged.
             meta = frappe.get_meta(mapping.source_doctype)
-            html_fields = {
-                df.fieldname for df in meta.fields
-                if df.fieldtype in ("Text Editor", "HTML Editor", "HTML")
-            }
-
             id_field = mapping.id_field
-            records = frappe.get_all(mapping.source_doctype, fields=list(dict.fromkeys(fields)))
+            editable = {row.doctype_field for row in mapping.field_map if row.editable_from_sheet}
+            records = frappe.get_all(
+                mapping.source_doctype, fields=list(dict.fromkeys(fields)), order_by="creation asc"
+            )
             sync_state = _load_sync_state(mapping_name)
             conflicted_fields = {
                 (key[0], key[1]) for key, row in sync_state.items() if row.conflict_flagged
             }
 
             def cell_value(record, fieldname):
-                value = record.get(fieldname) or ""
-                if fieldname in html_fields:
-                    value = frappe.utils.strip_html(value)
-                return str(value)
-
-            # One row per record, columns in field_map order plus the
-            # dedicated id_column last -- pull sync (#4) reads that column
-            # to find which record a row belongs to. A conflicted cell gets
-            # a sentinel here (None) rather than the real value, resolved
-            # against the sheet's current content further down.
-            rows = [
-                [
-                    None if (str(record.get(id_field) or ""), f) in conflicted_fields
-                    else cell_value(record, f)
-                    for f in fields
-                ]
-                for record in records
-            ]
+                return _norm(record.get(fieldname), meta.get_field(fieldname))
 
             client = GoogleSheetsClient()
             start_row = mapping.header_row + 1
             min_col = min(_col_letter_to_index(c) for c in columns)
             max_col = max(_col_letter_to_index(c) for c in columns)
-            end_row = start_row + max(len(rows) - 1, 0)
             width = max_col - min_col + 1
+            start_col = _index_to_col_letter(min_col)
+            end_col = _index_to_col_letter(max_col)
+            col_offsets = [_col_letter_to_index(c) - min_col for c in columns]
+            id_offset = _col_letter_to_index(mapping.id_column) - min_col
 
-            # Write the header row itself -- confirmed live, header_row was
-            # only ever used to compute where DATA starts; nothing wrote the
-            # titles into it, so a sheet with no headers already typed in by
-            # hand synced real data into a column-title-less grid with no
-            # way to tell which column was which. Real field labels (not
-            # raw fieldnames -- "Item Name", not "item_name"), same
-            # min_col..max_col contiguous block shape as the data write
-            # below, skipped if that exact row already has the same values
-            # (no point re-writing an unchanged header on every push).
+            # Write the header row (real field labels, not raw fieldnames),
+            # only when it differs from what is already there.
             field_labels = {df.fieldname: (df.label or df.fieldname) for df in meta.fields}
             field_labels[id_field] = field_labels.get(id_field) or id_field
             header_cells = [""] * width
-            for f, col_letter in zip(fields, columns):
-                header_cells[_col_letter_to_index(col_letter) - min_col] = field_labels.get(f, f)
+            for f, offset in zip(fields, col_offsets):
+                header_cells[offset] = field_labels.get(f, f)
             header_range = (
-                f"{mapping.sheet_tab}!{_index_to_col_letter(min_col)}{mapping.header_row}"
-                f":{_index_to_col_letter(max_col)}{mapping.header_row}"
+                f"{mapping.sheet_tab}!{start_col}{mapping.header_row}:{end_col}{mapping.header_row}"
             )
             current_header = client.get_values(mapping.spreadsheet_id, header_range)
             current_header_row = (current_header[0] if current_header else []) + [""] * width
             if current_header_row[:width] != header_cells:
                 client.update_values(mapping.spreadsheet_id, header_range, [header_cells])
 
-            rows_written = 0
-            if rows:
-                start_col = _index_to_col_letter(min_col)
-                end_col = _index_to_col_letter(max_col)
-                a1_range = f"{mapping.sheet_tab}!{start_col}{start_row}:{end_col}{end_row}"
+            # What the Sheet holds right now. Rows keep the position they
+            # already have (a record is found by its ID column, never by row
+            # number), so a push never reorders the Sheet under someone who
+            # is editing it; a new record is appended at the end, a deleted
+            # record has only its mapped cells cleared.
+            current = client.get_values(
+                mapping.spreadsheet_id, f"{mapping.sheet_tab}!{start_col}{start_row}:{end_col}"
+            )
+            current_rows = [(row + [""] * width)[:width] for row in current]
+            existing_row = {}
+            for index, row in enumerate(current_rows):
+                rid = row[id_offset].strip()
+                if rid and rid not in existing_row:
+                    existing_row[rid] = index
+            by_id = {str(record.get(id_field) or ""): record for record in records}
 
-                # Read the current range up front for two reasons: to fill
-                # in a conflicted cell's sentinel with whatever the sheet
-                # already shows (leaving it untouched), and (ported from
-                # gavindsouza/sheets' get_diff-before-save gate) to skip
-                # the write entirely when nothing actually changed --
-                # avoiding needless quota usage and, once real-time
-                # collaborators are watching the sheet, a spurious "cell
-                # updated" flash for a value that didn't move.
-                current = client.get_values(mapping.spreadsheet_id, a1_range)
-                current_padded = [
-                    (row + [""] * width)[:width] for row in current
-                ] + [[""] * width] * max(len(rows) - len(current), 0)
+            block = [list(row) for row in current_rows]
+            # Cells left alone because the Sheet holds an edit that pull has
+            # not read yet; their baseline must stay as it is.
+            kept_sheet_edit = set()
 
-                # Build a full contiguous block (min_col..max_col) even
-                # though only the mapped columns have real values, so a
-                # single update_values call can write every mapped column
-                # regardless of gaps between them (e.g. columns A and D
-                # mapped, B/C left untouched) -- Sheets' values.update only
-                # accepts one rectangular range per call.
-                block = []
-                for row_index, row in enumerate(rows):
-                    cells = list(current_padded[row_index])
-                    for value, col_letter in zip(row, columns):
-                        if value is not None:
-                            cells[_col_letter_to_index(col_letter) - min_col] = value
+            def fill(cells, rid, record):
+                for f, offset in zip(fields, col_offsets):
+                    if (rid, f) in conflicted_fields:
+                        continue
+                    value = cell_value(record, f)
+                    if f in editable and f != id_field and rid in existing_row:
+                        state = sync_state.get((rid, f))
+                        baseline = (state.last_synced_value or None) if state else None
+                        sheet_value = _norm(current_rows[existing_row[rid]][offset], meta.get_field(f))
+                        if baseline is not None and sheet_value != baseline and sheet_value != value:
+                            kept_sheet_edit.add((rid, f))
+                            continue
+                    cells[offset] = value
+
+            for index, row in enumerate(current_rows):
+                rid = row[id_offset].strip()
+                if rid in by_id:
+                    fill(block[index], rid, by_id[rid])
+                elif rid:
+                    for offset in col_offsets:
+                        block[index][offset] = ""
+            for rid, record in by_id.items():
+                if rid not in existing_row:
+                    cells = [""] * width
+                    fill(cells, rid, record)
                     block.append(cells)
 
-                if current_padded[: len(block)] != block:
-                    client.update_values(mapping.spreadsheet_id, a1_range, block)
-                    rows_written = len(block)
+            rows_written = 0
+            if block and block != current_rows:
+                end_row = start_row + len(block) - 1
+                client.update_values(
+                    mapping.spreadsheet_id, f"{mapping.sheet_tab}!{start_col}{start_row}:{end_col}{end_row}", block
+                )
+                rows_written = sum(1 for i, row in enumerate(block) if i >= len(current_rows) or row != current_rows[i])
 
-            # Whatever was actually written now matches the Sheet, so it
-            # becomes the new agreed baseline for conflict detection --
-            # skips id_field itself (not a Sheet-visible data field to
-            # track) and any cell that was left alone above because it's
-            # mid-conflict (its baseline stays whatever it already was
-            # until the conflict is resolved).
-            for record in records:
-                record_id = str(record.get(id_field) or "")
+            # What was written now matches the Sheet, so it becomes the new
+            # agreed baseline. Cells left alone (conflicted, or holding an
+            # unread Sheet edit) keep theirs, and an unchanged baseline is
+            # not written again.
+            for rid, record in by_id.items():
                 for f in fields:
-                    if f == id_field or (record_id, f) in conflicted_fields:
+                    if f == id_field or (rid, f) in conflicted_fields or (rid, f) in kept_sheet_edit:
                         continue
-                    state = sync_state.get((record_id, f))
-                    _save_sync_state(mapping_name, record_id, f, cell_value(record, f), state)
+                    value = cell_value(record, f)
+                    state = sync_state.get((rid, f))
+                    if state is None or state.last_synced_value != value:
+                        _save_sync_state(mapping_name, rid, f, value, state)
 
             log.items_processed = len(records)
             log.items_updated = rows_written
