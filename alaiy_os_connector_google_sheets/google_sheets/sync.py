@@ -82,6 +82,22 @@ def _run(sync_type, trigger, worker, mapping=None):
         # failing mapping does not stop the mappings after it.
 
 
+def _require_mappable_fields(mapping, fieldnames):
+    """Fail the run with the mapping and the field names instead of a raw
+    database error. A mapping saved before a field was removed, or on a
+    site where the field has no column, would otherwise stop at the first
+    query with an unreadable 'Unknown column' message."""
+    from alaiy_os_connector_google_sheets.api.mapping import mappable_fieldnames
+
+    allowed = mappable_fieldnames(mapping.source_doctype)
+    missing = [f for f in dict.fromkeys(fieldnames) if f not in allowed]
+    if missing:
+        frappe.throw(
+            f"Mapping {mapping.name}: {mapping.source_doctype} has no database field "
+            f"{', '.join(missing)}. Remove it from the mapping."
+        )
+
+
 def _enabled_mappings():
     return frappe.get_all("Google Sheets Mapping", filters={"is_enabled": 1}, pluck="name")
 
@@ -217,6 +233,7 @@ def run_pull_sync(trigger="scheduled"):
                 return
 
             fields = [row.doctype_field for row in editable_rows]
+            _require_mappable_fields(mapping, fields + [mapping.id_field])
             columns = [row.sheet_column for row in editable_rows] + [mapping.id_column]
             min_col = min(_col_letter_to_index(c) for c in columns)
             max_col = max(_col_letter_to_index(c) for c in columns)
@@ -342,6 +359,7 @@ def run_push_sync(trigger="scheduled"):
             mapping = frappe.get_doc("Google Sheets Mapping", mapping_name)
             fields = [row.doctype_field for row in mapping.field_map] + [mapping.id_field]
             columns = [row.sheet_column for row in mapping.field_map] + [mapping.id_column]
+            _require_mappable_fields(mapping, fields)
 
             meta = frappe.get_meta(mapping.source_doctype)
             id_field = mapping.id_field

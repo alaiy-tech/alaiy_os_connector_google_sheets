@@ -35,6 +35,15 @@ _UNSYNCABLE_FIELDTYPES = {
 _ID_LIKE_FIELDTYPES = {"Link", "Dynamic Link"}
 
 
+def mappable_fieldnames(doctype):
+    """Fieldnames a mapping can read: the doctype's real database columns
+    plus the framework attributes. A field that exists in the doctype
+    definition but has no column (virtual, or a custom field whose column
+    was never created) is not selectable by a query, so mapping one fails
+    the whole sync run with a database error."""
+    return set(frappe.get_meta(doctype).get_valid_columns()) | set(_FRAMEWORK_FIELDS)
+
+
 @frappe.whitelist()
 def get_syncable_fields(doctype):
     """Every real field on `doctype` that can be mapped to a Sheet column --
@@ -55,6 +64,7 @@ def get_syncable_fields(doctype):
         frappe.throw(_("Choose a Doctype first."))
 
     meta = frappe.get_meta(doctype)
+    columns = mappable_fieldnames(doctype)
     fields = [
         {
             "fieldname": df.fieldname,
@@ -63,7 +73,7 @@ def get_syncable_fields(doctype):
             "suggested_editable": not (df.fieldtype in _ID_LIKE_FIELDTYPES or df.read_only),
         }
         for df in meta.fields
-        if df.fieldtype not in _UNSYNCABLE_FIELDTYPES
+        if df.fieldtype not in _UNSYNCABLE_FIELDTYPES and df.fieldname in columns
     ]
     fields.insert(0, {
         "fieldname": "name", "label": "ID (name)", "fieldtype": "Data", "suggested_editable": False,

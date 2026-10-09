@@ -7,6 +7,8 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from alaiy_os_connector_google_sheets.api.mapping import mappable_fieldnames
+
 # Matches the id segment out of a real Sheets URL, e.g.
 # https://docs.google.com/spreadsheets/d/<ID>/edit#gid=0 -- the id itself
 # is alphanumeric plus - and _, always between /d/ and the next /.
@@ -50,18 +52,15 @@ class GoogleSheetsMapping(Document):
 		mid-sync (or worse, KeyError-ing a whole sync run over one bad row)."""
 		if not self.source_doctype:
 			return
-		meta = frappe.get_meta(self.source_doctype)
-		valid_fieldnames = {df.fieldname for df in meta.fields}
-		# name/owner/creation/modified etc. are real, readable attributes on
-		# every doc but aren't in meta.fields (they're framework-level, not
-		# doctype-defined) -- allow them explicitly rather than rejecting
-		# the single most common id_field value ("name") as invalid.
-		valid_fieldnames |= {"name", "owner", "creation", "modified", "modified_by", "docstatus"}
+		# Real database columns plus the framework attributes (name, owner,
+		# creation...). A field that is only in the doctype definition (virtual,
+		# or a custom field with no column) cannot be read by the sync query.
+		valid_fieldnames = mappable_fieldnames(self.source_doctype)
 
 		for row in self.field_map:
 			if row.doctype_field not in valid_fieldnames:
 				frappe.throw(
-					_("Row #{0}: {1} has no field {2}.").format(
+					_("Row #{0}: {1} has no database field {2}.").format(
 						row.idx, self.source_doctype, frappe.bold(row.doctype_field)
 					)
 				)
@@ -72,9 +71,7 @@ class GoogleSheetsMapping(Document):
 		check run separately."""
 		if not self.source_doctype or not self.id_field:
 			return
-		meta = frappe.get_meta(self.source_doctype)
-		valid_fieldnames = {df.fieldname for df in meta.fields} | {"name"}
-		if self.id_field not in valid_fieldnames:
+		if self.id_field not in mappable_fieldnames(self.source_doctype):
 			frappe.throw(
 				_("Unique ID Field: {0} has no field {1}.").format(
 					self.source_doctype, frappe.bold(self.id_field)
