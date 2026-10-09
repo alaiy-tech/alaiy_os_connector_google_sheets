@@ -88,20 +88,31 @@ def _run(sync_type, trigger, worker, mapping=None):
         # failing mapping does not stop the mappings after it.
 
 
-def _require_mappable_fields(mapping, fieldnames):
-    """Fail the run with the mapping and the field names instead of a raw
-    database error. A mapping saved before a field was removed, or on a
-    site where the field has no column, would otherwise stop at the first
-    query with an unreadable 'Unknown column' message."""
+def _usable_rows(mapping, log):
+    """The mapping's field rows that the source doctype can actually read.
+
+    A row whose field has no database column (a mapping saved before the
+    field was removed, or on a site where it has no column) would fail the
+    whole run with an 'Unknown column' query error. It is skipped instead,
+    and the Sync Log says which fields were left out. The Unique ID Field is
+    required, so a missing one still fails the run, with its name."""
     from alaiy_os_connector_google_sheets.api.mapping import mappable_fieldnames
 
     allowed = mappable_fieldnames(mapping.source_doctype)
-    missing = [f for f in dict.fromkeys(fieldnames) if f not in allowed]
-    if missing:
+    if mapping.id_field not in allowed:
         frappe.throw(
             f"Mapping {mapping.name}: {mapping.source_doctype} has no database field "
-            f"{', '.join(missing)}. Remove it from the mapping."
+            f"{mapping.id_field}, set as the Unique ID Field."
         )
+    skipped = [row.doctype_field for row in mapping.field_map if row.doctype_field not in allowed]
+    if skipped:
+        log.log_messages = (
+            f"Skipped fields with no database column on {mapping.source_doctype}: "
+            f"{', '.join(skipped)}.\n" + (log.log_messages or "")
+        )
+        log.save(ignore_permissions=True)
+        frappe.db.commit()
+    return [row for row in mapping.field_map if row.doctype_field in allowed]
 
 
 def _enabled_mappings():
@@ -228,7 +239,7 @@ def run_pull_sync(trigger="scheduled"):
     for mapping_name in _enabled_mappings():
         def worker(log, mapping_name=mapping_name):
             mapping = frappe.get_doc("Google Sheets Mapping", mapping_name)
-            editable_rows = [row for row in mapping.field_map if row.editable_from_sheet]
+            editable_rows = [row for row in _usable_rows(mapping, log) if row.editable_from_sheet]
             if not editable_rows:
                 # Nothing on this mapping is writable from the Sheet side --
                 # a perfectly valid configuration (e.g. a mapping that's
@@ -239,7 +250,6 @@ def run_pull_sync(trigger="scheduled"):
                 return
 
             fields = [row.doctype_field for row in editable_rows]
-            _require_mappable_fields(mapping, fields + [mapping.id_field])
             columns = [row.sheet_column for row in editable_rows] + [mapping.id_column]
             min_col = min(_col_letter_to_index(c) for c in columns)
             max_col = max(_col_letter_to_index(c) for c in columns)
@@ -363,13 +373,13 @@ def run_push_sync(trigger="scheduled"):
     for mapping_name in _enabled_mappings():
         def worker(log, mapping_name=mapping_name):
             mapping = frappe.get_doc("Google Sheets Mapping", mapping_name)
-            fields = [row.doctype_field for row in mapping.field_map] + [mapping.id_field]
-            columns = [row.sheet_column for row in mapping.field_map] + [mapping.id_column]
-            _require_mappable_fields(mapping, fields)
+            rows = _usable_rows(mapping, log)
+            fields = [row.doctype_field for row in rows] + [mapping.id_field]
+            columns = [row.sheet_column for row in rows] + [mapping.id_column]
 
             meta = frappe.get_meta(mapping.source_doctype)
             id_field = mapping.id_field
-            editable = {row.doctype_field for row in mapping.field_map if row.editable_from_sheet}
+            editable = {row.doctype_field for row in rows if row.editable_from_sheet}
             records = frappe.get_all(
                 mapping.source_doctype, fields=list(dict.fromkeys(fields)), order_by="creation asc"
             )
