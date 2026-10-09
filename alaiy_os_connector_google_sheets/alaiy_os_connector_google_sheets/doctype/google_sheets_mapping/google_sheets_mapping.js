@@ -133,6 +133,18 @@ frappe.ui.form.on("Google Sheets Mapping", {
     wire_doctype_field_autocomplete(frm);
     add_map_all_fields_button(frm);
 
+    // Straight to the Sheet this mapping syncs with. Only the spreadsheet is
+    // opened: the mapping stores the tab by name, and a link needs its gid.
+    if (frm.doc.spreadsheet_id) {
+      frm.add_custom_button(__("Open Sheet"), () => {
+        window.open(
+          `https://docs.google.com/spreadsheets/d/${encodeURIComponent(frm.doc.spreadsheet_id)}/edit`,
+          "_blank",
+          "noopener",
+        );
+      });
+    }
+
     // A mapping is useless without a connected Google account -- check and
     // show it right here instead of making the admin guess or go check
     // Google Sheets Connector Settings separately.
