@@ -7,7 +7,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
-from alaiy_os_connector_google_sheets.api.mapping import mappable_fieldnames
+from alaiy_os_connector_google_sheets.api.mapping import mappable_fieldnames, not_editable_reason
 
 # Matches the id segment out of a real Sheets URL, e.g.
 # https://docs.google.com/spreadsheets/d/<ID>/edit#gid=0 -- the id itself
@@ -56,12 +56,23 @@ class GoogleSheetsMapping(Document):
 		# creation...). A field that is only in the doctype definition (virtual,
 		# or a custom field with no column) cannot be read by the sync query.
 		valid_fieldnames = mappable_fieldnames(self.source_doctype)
+		meta = frappe.get_meta(self.source_doctype)
 
 		for row in self.field_map:
 			if row.doctype_field not in valid_fieldnames:
 				frappe.throw(
 					_("Row #{0}: {1} has no database field {2}.").format(
 						row.idx, self.source_doctype, frappe.bold(row.doctype_field)
+					)
+				)
+			# Framework attributes (name, owner...) have no DocField; they
+			# are never writable from a Sheet.
+			df = meta.get_field(row.doctype_field)
+			reason = not_editable_reason(df, meta) if df else _("it is a system field")
+			if row.editable_from_sheet and reason:
+				frappe.throw(
+					_("Row #{0}: {1} cannot be editable from the Sheet, {2}. Untick Editable from Sheet.").format(
+						row.idx, frappe.bold(row.doctype_field), reason
 					)
 				)
 

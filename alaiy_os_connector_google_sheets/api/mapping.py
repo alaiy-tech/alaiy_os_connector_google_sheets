@@ -13,6 +13,7 @@ row set in the first place.
 
 import frappe
 from frappe import _
+from frappe.model import NO_VALUE_FIELDS
 
 # Framework-level attributes real on every doc but not in meta.fields --
 # same set google_sheets_mapping.py's own validation already allows.
@@ -21,10 +22,7 @@ _FRAMEWORK_FIELDS = ("name", "owner", "creation", "modified", "modified_by", "do
 # Fieldtypes that can't hold a single Sheet cell value -- offering these in
 # the picker would let an admin map something the sync can never actually
 # read/write.
-_UNSYNCABLE_FIELDTYPES = {
-    "Table", "Table MultiSelect", "Section Break", "Column Break", "Tab Break",
-    "HTML", "Button", "Fold", "Heading",
-}
+_UNSYNCABLE_FIELDTYPES = set(NO_VALUE_FIELDS)
 
 # Fieldtypes that identify or point at another record -- editing these from
 # a Sheet risks pointing a real document at the wrong record entirely (a
@@ -33,6 +31,30 @@ _UNSYNCABLE_FIELDTYPES = {
 # admin may genuinely want one visible/editable), but Map All Fields leaves
 # these unchecked by default rather than assuming editable.
 _ID_LIKE_FIELDTYPES = {"Link", "Dynamic Link"}
+
+
+def not_editable_reason(df, meta):
+    """Why an edit to this field from a Sheet would never take effect on
+    save, or None if it can be edited. Frappe either ignores or rejects the
+    value in each of these cases, so a Sheet edit would be dropped or fail
+    the record."""
+    if df.read_only or df.fieldtype == "Read Only":
+        return _("it is read-only")
+    if df.fetch_from and not df.fetch_if_empty:
+        return _("it is filled from a linked record on every save")
+    if df.set_only_once:
+        return _("it can only be set once")
+    return None
+
+
+def _default_editable(df, meta):
+    """Whether Map All Fields should tick "Editable from Sheet" for a field.
+    Stricter than not_editable_reason: also leaves unticked a Link, and on a
+    submittable doctype any field that is not allowed to change after
+    submission, since the Sheet cannot know the record's state."""
+    if not_editable_reason(df, meta) or df.fieldtype in _ID_LIKE_FIELDTYPES:
+        return False
+    return not (meta.is_submittable and not df.allow_on_submit)
 
 
 def mappable_fieldnames(doctype):
@@ -70,7 +92,7 @@ def get_syncable_fields(doctype):
             "fieldname": df.fieldname,
             "label": df.label or df.fieldname,
             "fieldtype": df.fieldtype,
-            "suggested_editable": not (df.fieldtype in _ID_LIKE_FIELDTYPES or df.read_only),
+            "suggested_editable": _default_editable(df, meta),
         }
         for df in meta.fields
         if df.fieldtype not in _UNSYNCABLE_FIELDTYPES and df.fieldname in columns
