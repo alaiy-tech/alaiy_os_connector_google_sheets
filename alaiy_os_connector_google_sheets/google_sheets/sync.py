@@ -72,6 +72,12 @@ def _run(sync_type, trigger, worker, mapping=None):
     try:
         worker(log)
         _mark_finished(log, "success")
+    except frappe.ValidationError as e:
+        # A configuration problem the admin can fix (the message says what):
+        # record just that message, not a traceback, and keep it out of the
+        # Error Log.
+        frappe.clear_messages()
+        _mark_finished(log, "failed", str(e))
     except Exception:
         _mark_finished(log, "failed", frappe.get_traceback())
         frappe.log_error(
