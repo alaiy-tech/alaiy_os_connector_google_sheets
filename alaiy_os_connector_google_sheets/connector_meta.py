@@ -3,6 +3,30 @@ Single source of truth for this connector's registration metadata.
 Consumed by setup/install.py → upserted into alaiy_os's OS Connector Registry.
 """
 
+# Columns of Google Sheets Sync Log, named the way the Connector Health page reads them.
+_LOG_FIELDS = {
+    "processed": "items_processed",
+    "changed": ["items_created", "items_updated"],
+    "failed": "items_failed",
+    "error": "error_message",
+}
+
+
+def _health(key, label, direction, sync_type, interval_setting):
+    return {
+        "key": key,
+        "label": label,
+        "direction": direction,
+        "log_doctype": "Google Sheets Sync Log",
+        "log_filter": {"sync_type": sync_type},
+        "fields": _LOG_FIELDS,
+        "interval_setting": interval_setting,
+        "scheduled": True,
+        # A sheet with no edited rows, or no changed records, is a normal run.
+        "expects_rows": False,
+    }
+
+
 connector_meta = {
     "connector_id": "google_sheets",
     "connector_name": "Google Sheets",
@@ -27,4 +51,8 @@ connector_meta = {
     "sync_items_label": "Alaiy OS -> Sheets",
     "is_enabled": 0,
     "connection_status": "untested",
+    "health": [
+        _health("pull", "Sheets to Alaiy OS", "pull", "pull", "gs_pull_sync_interval"),
+        _health("push", "Alaiy OS to Sheets", "push", "push", "gs_push_sync_interval"),
+    ],
 }
