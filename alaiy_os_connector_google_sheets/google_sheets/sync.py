@@ -13,6 +13,13 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime
 
+try:
+    from alaiy_os.health.runs import run_status
+except ImportError:  # core without Connector Health: keep the old behaviour
+
+    def run_status(processed, failed, skipped=0, error=None):
+        return "success"
+
 
 @frappe.whitelist()
 def resolve_conflict(sync_state_name):
@@ -71,7 +78,10 @@ def _run(sync_type, trigger, worker, mapping=None):
     _mark_running(log)
     try:
         worker(log)
-        _mark_finished(log, "success")
+        processed, failed = log.items_processed or 0, getattr(log, "items_failed", 0) or 0
+        status = run_status(processed, failed, 0, log.error_message)
+        message = f"Every item failed ({failed}); see the log." if status == "failed" and not log.error_message else None
+        _mark_finished(log, status, message)
     except frappe.ValidationError as e:
         # A configuration problem the admin can fix (the message says what):
         # record just that message, not a traceback, and keep it out of the
